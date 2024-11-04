@@ -1,14 +1,15 @@
-use color_eyre::{owo_colors::OwoColorize, Result};
+use color_eyre::Result;
 use isahc::ReadResponseExt;
+use ratatui::{style::Stylize, text::Line};
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 use scraper::{ElementRef, Html, Selector};
 
 #[derive(Debug)]
 pub struct Comic {
-    pub name: String,
+    name: String,
     pub number: u32,
     image: Vec<u8>,
-    pub alt_text: String,
+    alt_text: String,
 }
 
 const URL: &str = "https://xkcd.com/";
@@ -43,13 +44,17 @@ impl Comic {
         })
     }
 
-    pub fn image(&self) -> Result<Box<dyn StatefulProtocol>> {
-        let mut picker = Picker::from_termios().unwrap();
-        picker.guess_protocol();
+    pub fn image(&self, picker: &mut Picker) -> Result<StatefulProtocol> {
         Ok(picker.new_resize_protocol(image::load_from_memory(&self.image)?))
     }
 
-    pub fn title(&self) -> String {
-        format!("{}: {}", self.number, self.name)
+    pub fn alt_text(&self) -> Line {
+        Line::from(self.alt_text.as_str()).centered().gray()
+    }
+
+    pub fn title(&self) -> Line {
+        Line::from(format!("{}: {}", self.number, self.name))
+            .centered()
+            .yellow()
     }
 }
