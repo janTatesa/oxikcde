@@ -1,46 +1,39 @@
-use color_eyre::Result;
+use color_eyre::{eyre::Ok, Result};
 use isahc::ReadResponseExt;
 use ratatui::{style::Stylize, text::Line};
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
-use scraper::{ElementRef, Html, Selector};
+use serde_json::Value;
 
-#[derive(Debug)]
 pub struct Comic {
     name: String,
     pub number: u32,
     image: Vec<u8>,
     alt_text: String,
+    date_uploaded: String,
 }
 
-const URL: &str = "https://xkcd.com/";
-const URL_LENGHT: usize = 17;
 impl Comic {
+    //TODO: implement caching
     pub fn download(number: Option<u32>) -> Result<Self> {
-        let num_string = match number {
-            Some(num) => &num.to_string(),
-            _ => "",
-        };
-        let html = Html::parse_document(isahc::get(URL.to_string() + num_string)?.text()?.as_str());
-        let img_element = html
-            .select(&Selector::parse("#comic img").unwrap())
-            .next()
-            .unwrap();
-        let alt_text = img_element.attr("title").unwrap().to_owned();
-        let name = img_element.attr("alt").unwrap().to_owned();
-        let image = isahc::get("https:".to_string() + img_element.attr("src").unwrap())?.bytes()?;
-        let number = number.unwrap_or({
-            let elements = html
-                .select(&Selector::parse("#middleContainer a").unwrap())
-                .collect::<Vec<ElementRef>>();
-            let element = elements.get(10).unwrap();
-            let url = element.attr("href").unwrap();
-            url[URL_LENGHT..].parse()?
-        });
+        let text = isahc::get(match number {
+            Some(number) => format!("https://xkcd.com/{}/info.0.json", number),
+            _ => String::from("https://xkcd.com/info.0.json"),
+        })?
+        .text()?;
+        let json: Value = serde_json::from_str(text.as_str())?;
+        let date_uploaded = format!(
+            "{}-{:02}-{:02}",
+            json["year"].as_str().unwrap(),
+            json["month"].as_str().unwrap().parse::<u16>().unwrap(),
+            json["day"].as_str().unwrap().parse::<u16>().unwrap(),
+        );
+        let image = isahc::get(json["img"].as_str().unwrap())?.bytes()?;
         Ok(Self {
-            name,
-            number,
+            name: json["title"].as_str().unwrap().to_string(),
+            number: json["num"].as_u64().unwrap() as u32,
             image,
-            alt_text,
+            alt_text: json["alt"].as_str().unwrap().to_string(),
+            date_uploaded,
         })
     }
 
@@ -56,5 +49,8 @@ impl Comic {
         Line::from(format!("{}: {}", self.number, self.name))
             .centered()
             .yellow()
+    }
+    pub fn date_uploaded(&self) -> Line {
+        Line::from(self.date_uploaded.as_str()).blue()
     }
 }

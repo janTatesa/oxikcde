@@ -7,11 +7,12 @@ description = "XKCD oxidised"
 
 [dependencies]
 clap = {version = "4.5.20", features = ["cargo", "derive"]}
+cli-log = "2.1.0"
 color-eyre = "0.6.3"
 crossterm = "0.28.1"
 image = "0.25.4"
 isahc = "1.7.2"
 ratatui = "0.29.0"
 ratatui-image = "3.0.0"
-scraper = "0.20.0"
 serde = "1.0.214"
+serde_json = "1.0.132"
