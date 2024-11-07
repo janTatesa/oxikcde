@@ -1,9 +1,12 @@
 use super::{App, SwitchToComic::*};
+use cli_log::{debug, info};
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 impl App {
     pub(super) fn handle_events(&mut self) -> Result<bool> {
-        match event::read()? {
+        let event = event::read()?;
+        debug!("Event: {:?}", event);
+        match event {
             Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
                 self.handle_key_event(key_event.code)
             }
@@ -14,7 +17,7 @@ impl App {
     fn handle_key_event(&mut self, code: KeyCode) -> Result<bool> {
         match code {
             KeyCode::Backspace => {}
-            KeyCode::Enter => return Ok(false),
+            KeyCode::Enter => {}
             KeyCode::Left => self.switch_to_comic(Previous)?,
             KeyCode::Right => self.switch_to_comic(Next)?,
             KeyCode::Up => {}
@@ -30,7 +33,10 @@ impl App {
             KeyCode::F(_) => {}
             KeyCode::Char(char) => return self.handle_char_keypress(char),
             KeyCode::Null => {}
-            KeyCode::Esc => {}
+            KeyCode::Esc => {
+                info!("Quiting");
+                return Ok(true);
+            }
             KeyCode::CapsLock => {}
             KeyCode::ScrollLock => {}
             KeyCode::NumLock => {}
@@ -46,7 +52,10 @@ impl App {
 
     fn handle_char_keypress(&mut self, char: char) -> Result<bool> {
         match char {
-            'q' => return Ok(true),
+            'q' => {
+                info!("Quiting");
+                return Ok(true);
+            }
             'p' => self.switch_to_comic(Previous)?,
             'n' => self.switch_to_comic(Next)?,
             'f' => self.switch_to_comic(First)?,

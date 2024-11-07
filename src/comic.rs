@@ -1,6 +1,10 @@
 use color_eyre::{eyre::Ok, Result};
 use isahc::ReadResponseExt;
-use ratatui::{style::Stylize, text::Line};
+use ratatui::{
+    style::{Style, Stylize},
+    text::Line,
+    widgets::{Paragraph, Wrap},
+};
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol};
 use serde_json::Value;
 
@@ -41,16 +45,21 @@ impl Comic {
         Ok(picker.new_resize_protocol(image::load_from_memory(&self.image)?))
     }
 
-    pub fn alt_text(&self) -> Line {
-        Line::from(self.alt_text.as_str()).centered().gray()
+    pub fn alt_text(&self) -> Paragraph {
+        Paragraph::new(self.alt_text.as_str())
+            .centered()
+            .dark_gray()
+            .wrap(Wrap::default())
     }
 
     pub fn title(&self) -> Line {
-        Line::from(format!("{}: {}", self.number, self.name))
-            .centered()
-            .yellow()
+        Line::styled(
+            format!("{}: {}", self.number, self.name),
+            Style::new().yellow().bold(),
+        )
+        .centered()
     }
     pub fn date_uploaded(&self) -> Line {
-        Line::from(self.date_uploaded.as_str()).blue()
+        Line::styled(self.date_uploaded.as_str(), Style::new().blue())
     }
 }

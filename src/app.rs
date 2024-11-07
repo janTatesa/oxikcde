@@ -38,14 +38,21 @@ impl App {
             let area = f.area();
             f.render_widget(
                 Block::new()
-                    .title_top(self.comic.title())
                     .title_top(self.comic.date_uploaded())
-                    .title_bottom(self.comic.alt_text()),
+                    .title_top(self.comic.title()),
                 area,
             );
+            let alt_text = self.comic.alt_text();
+            let alt_text_height = alt_text.line_count(area.width) as u16;
+            let alt_text_area = Rect {
+                y: area.height - alt_text_height,
+                height: alt_text_height,
+                ..area
+            };
+            f.render_widget(alt_text, alt_text_area);
             let image_area = Rect {
                 y: area.y + 1,
-                height: area.height - 2,
+                height: area.height - 1 - alt_text_height,
                 ..area
             };
 
