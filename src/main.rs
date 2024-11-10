@@ -16,6 +16,7 @@ enum CommandToApp {
     Quit,
     SwitchToComic(SwitchToComic),
     HandleResize,
+    ToggleInvert,
 }
 
 #[allow(dead_code)]

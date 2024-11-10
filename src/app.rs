@@ -19,8 +19,7 @@ pub struct App {
 impl App {
     pub fn new(terminal: DefaultTerminal) -> Result<Self> {
         let mut comic_downloader = ComicDownloader::default();
-        let mut ui = Ui::new(terminal)?;
-        ui.render(comic_downloader.switch(SwitchToComic::Latest)?)?;
+        let ui = Ui::new(terminal, comic_downloader.switch(SwitchToComic::Latest)?)?;
         Ok(Self {
             comic_downloader,
             ui,
@@ -29,9 +28,12 @@ impl App {
     pub fn handle_command(&mut self, command: CommandToApp) -> Result<()> {
         info!("Performing {:?}", command);
         match command {
-            SwitchToComic(action) => self.ui.render(self.comic_downloader.switch(action)?),
+            SwitchToComic(action) => self
+                .ui
+                .render_new_comic(self.comic_downloader.switch(action)?),
             HandleResize => self.ui.handle_resize(),
             Quit => Ok(()),
+            ToggleInvert => self.ui.toggle_invert(),
         }
     }
 }

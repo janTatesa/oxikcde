@@ -1,4 +1,8 @@
 use color_eyre::Result;
+use image::{
+    imageops::{grayscale, invert},
+    DynamicImage, ImageBuffer,
+};
 use ratatui::{
     layout::Rect,
     style::{Style, Stylize},
@@ -12,38 +16,47 @@ use super::comic::Comic;
 pub struct Ui {
     terminal: DefaultTerminal,
     picker: Picker,
+    invert_image: bool,
     comic: Comic,
 }
 
 impl Ui {
-    pub fn new(terminal: DefaultTerminal) -> Result<Self> {
+    pub fn new(terminal: DefaultTerminal, comic: Comic) -> Result<Self> {
         let picker = Picker::from_query_stdio()?;
-        Ok(Self {
+        let mut ui = Self {
             terminal,
             picker,
-            comic: Comic::default(),
-        })
+            invert_image: true,
+            comic,
+        };
+        ui.render()?;
+        Ok(ui)
     }
     pub fn handle_resize(&mut self) -> Result<()> {
         self.picker = Picker::from_query_stdio()?;
-        self.render_internal()
+        self.render()
     }
 
-    pub fn render(&mut self, comic: Comic) -> Result<()> {
+    pub fn render_new_comic(&mut self, comic: Comic) -> Result<()> {
         self.comic = comic;
-        self.render_internal()
+        self.invert_image = true;
+        self.render()
     }
 
-    fn render_internal(&mut self) -> Result<()> {
+    pub fn toggle_invert(&mut self) -> Result<()> {
+        self.invert_image = !self.invert_image;
+        self.render()
+    }
+
+    fn render(&mut self) -> Result<()> {
         self.terminal.draw(|f| {
             let area = f.area();
             f.render_widget(
                 Block::new()
                     .title_top(self.comic.date_uploaded.as_str().blue())
-                    .title_top(Line::styled(
-                        &self.comic.title,
-                        Style::new().yellow().bold(),
-                    )),
+                    .title_top(
+                        Line::styled(&self.comic.title, Style::new().yellow().bold()).centered(),
+                    ),
                 area,
             );
             let alt_text = Paragraph::new(self.comic.alt_text.as_str())
@@ -62,8 +75,11 @@ impl Ui {
                 ..area
             };
 
-            //TODO: handle the unwrap
-            let mut image = self.picker.new_resize_protocol(self.comic.image.clone());
+            let mut image = self.picker.new_resize_protocol(if self.invert_image {
+                invert_image(&self.comic.image)
+            } else {
+                self.comic.image.clone()
+            });
 
             // The image widget.
             //TODO: resize the image
@@ -74,4 +90,10 @@ impl Ui {
         })?;
         Ok(())
     }
+}
+
+fn invert_image(image: &DynamicImage) -> DynamicImage {
+    let mut grayscale = grayscale(image);
+    invert(&mut grayscale);
+    grayscale.into()
 }

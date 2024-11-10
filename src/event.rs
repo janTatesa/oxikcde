@@ -56,6 +56,7 @@ fn handle_char_keypress(char: char) -> Option<CommandToApp> {
         'n' => Some(SwitchToComic(Next)),
         'f' => Some(SwitchToComic(First)),
         'l' => Some(SwitchToComic(Latest)),
+        'i' => Some(ToggleInvert),
         _ => None,
     }
 }
