@@ -94,8 +94,20 @@ impl ComicDownloader {
 
     fn switch_to_comic(&mut self, switch_to_comic: SwitchToComic) -> Result<()> {
         self.last_seen_comic = match switch_to_comic {
-            SwitchToComic::Next => self.last_seen_comic + 1,
-            SwitchToComic::Previous => self.last_seen_comic - 1,
+            SwitchToComic::Next => {
+                if Self::get_latest_comic()? > self.last_seen_comic {
+                    self.last_seen_comic + 1
+                } else {
+                    self.last_seen_comic
+                }
+            }
+            SwitchToComic::Previous => {
+                if self.last_seen_comic > 1 {
+                    self.last_seen_comic - 1
+                } else {
+                    1
+                }
+            }
             SwitchToComic::Latest => Self::get_latest_comic()?,
             SwitchToComic::First => 1,
             SwitchToComic::Random => self.rng.gen_range(1..Self::get_latest_comic()?),
