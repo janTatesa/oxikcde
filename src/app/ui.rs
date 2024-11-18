@@ -1,7 +1,7 @@
 use color_eyre::Result;
 use image::{
     imageops::{grayscale, invert},
-    DynamicImage, ImageBuffer,
+    DynamicImage,
 };
 use ratatui::{
     layout::Rect,
@@ -10,7 +10,7 @@ use ratatui::{
     widgets::{Block, Paragraph, Wrap},
     DefaultTerminal,
 };
-use ratatui_image::{picker::Picker, StatefulImage};
+use ratatui_image::{picker::Picker, Image, Resize};
 
 use super::comic::Comic;
 pub struct Ui {
@@ -55,13 +55,18 @@ impl Ui {
                 Block::new()
                     .title_top(self.comic.date_uploaded.as_str().blue())
                     .title_top(
-                        Line::styled(&self.comic.title, Style::new().yellow().bold()).centered(),
+                        Line::styled(
+                            format!("{}: {}", self.comic.number, self.comic.name),
+                            Style::new().yellow().bold(),
+                        )
+                        .centered(),
                     ),
                 area,
             );
             let alt_text = Paragraph::new(self.comic.alt_text.as_str())
                 .centered()
-                .wrap(Wrap::default());
+                .wrap(Wrap::default())
+                .dark_gray();
             let alt_text_height = alt_text.line_count(area.width) as u16;
             let alt_text_area = Rect {
                 y: area.height - alt_text_height,
@@ -75,18 +80,23 @@ impl Ui {
                 ..area
             };
 
-            let mut image = self.picker.new_resize_protocol(if self.invert_image {
-                invert_image(&self.comic.image)
-            } else {
-                self.comic.image.clone()
-            });
+            let image = self
+                .picker
+                .new_protocol(
+                    if self.invert_image {
+                        invert_image(&self.comic.image)
+                    } else {
+                        self.comic.image.clone()
+                    },
+                    image_area,
+                    Resize::Fit(None),
+                )
+                .expect("XKCD should always contain valid images");
 
             // The image widget.
             //TODO: resize the image
-            let image_widget = StatefulImage::new(Some(image::Rgb([30, 30, 46])))
-                .resize(ratatui_image::Resize::Fit(None));
-            // Render with the protocol state.
-            f.render_stateful_widget(image_widget, image_area, &mut image)
+            let image_widget = Image::new(&image);
+            f.render_widget(image_widget, image_area)
         })?;
         Ok(())
     }

@@ -1,4 +1,4 @@
-use crate::{
+use crate::app::{
     CommandToApp::{self, *},
     SwitchToComic::*,
 };
@@ -57,6 +57,8 @@ fn handle_char_keypress(char: char) -> Option<CommandToApp> {
         'f' => Some(SwitchToComic(First)),
         'l' => Some(SwitchToComic(Latest)),
         'i' => Some(ToggleInvert),
+        'b' => Some(BookmarkComic),
+        'r' => Some(SwitchToComic(Random)),
         _ => None,
     }
 }
