@@ -6,6 +6,8 @@ use cli_log::debug;
 use color_eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
 
+use super::SwitchToComic;
+
 pub fn handle_events() -> Result<Option<CommandToApp>> {
     let event = event::read()?;
     debug!("Event: {:?}", event);
@@ -59,6 +61,7 @@ fn handle_char_keypress(char: char) -> Option<CommandToApp> {
         'i' => Some(ToggleInvert),
         'b' => Some(BookmarkComic),
         'r' => Some(SwitchToComic(Random)),
+        'd' => Some(SwitchToComic(LastSeen)),
         _ => None,
     }
 }

@@ -1,5 +1,5 @@
 use crate::app::SwitchToComic;
-use color_eyre::{eyre::Ok, Result};
+use color_eyre::Result;
 use dirs::state_dir;
 use image::DynamicImage;
 use isahc::ReadResponseExt;
@@ -12,8 +12,8 @@ pub struct ComicDownloader {
     rng: ThreadRng,
 }
 
+#[derive(Clone)]
 pub struct Comic {
-    pub number: u64,
     pub name: String,
     pub alt_text: String,
     pub date_uploaded: String,
@@ -30,19 +30,19 @@ impl Comic {
             json["day"].as_str().unwrap().parse::<u16>().unwrap(),
         );
 
-        let image = image::load_from_memory(&isahc::get(json["img"].as_str().unwrap())?.bytes()?)?;
+        let image =
+            image::load_from_memory(&isahc::get(json["img"].as_str().unwrap())?.bytes()?).unwrap();
         Ok(Comic {
             alt_text,
             date_uploaded,
             image,
-            number: json["num"].as_u64().unwrap(),
             name: json["title"].as_str().unwrap().to_owned(),
         })
     }
 }
 
 impl ComicDownloader {
-    pub fn new(switch_to_comic: SwitchToComic) -> Result<(Self, Comic)> {
+    pub fn new(switch_to_comic: SwitchToComic) -> (Self, (Result<Comic>, u64)) {
         let file = fs::read_to_string(Self::get_path_to_state_file()).unwrap_or_default();
         let json: Value = serde_json::from_str(&file).unwrap_or_default();
         let mut comic_downloader = Self {
@@ -50,50 +50,21 @@ impl ComicDownloader {
             bookmarked_comic: json["bookmarked_comic"].as_u64(),
             rng: thread_rng(),
         };
-        let comic = comic_downloader.switch(switch_to_comic)?;
-        Ok((comic_downloader, comic))
+        let comic = comic_downloader.switch(switch_to_comic);
+        (comic_downloader, comic)
     }
-    pub fn switch(&mut self, switch_to_comic: SwitchToComic) -> Result<Comic> {
-        self.switch_to_comic(switch_to_comic)?;
-        let comic = Self::download(self.last_seen_comic)?;
-        Ok(comic)
+    pub fn switch(&mut self, switch_to_comic: SwitchToComic) -> (Result<Comic>, u64) {
+        self.last_seen_comic = match self.get_comic_number(switch_to_comic) {
+            Ok(num) => num,
+            Err(e) => return (Err(e), 0),
+        };
+        (self.download(), self.last_seen_comic)
     }
-
-    pub fn bookmark_comic(&mut self) {
-        self.bookmarked_comic = Some(self.last_seen_comic);
+    fn download(&self) -> Result<Comic> {
+        Comic::new(Self::download_json(Some(self.last_seen_comic))?)
     }
-
-    pub fn save(&self) -> Result<()> {
-        let json = json!({"last_seen_comic": self.last_seen_comic, "bookmarked_comic": self.bookmarked_comic}).to_string();
-        let path = Self::get_path_to_state_file();
-        fs::create_dir_all(path.parent().unwrap())?;
-        Ok(fs::write(path, json)?)
-    }
-
-    fn get_path_to_state_file() -> PathBuf {
-        let mut path = state_dir().unwrap_or_default();
-        path.push("oxikcde");
-        path.push("comic_downloader.json");
-        path
-    }
-
-    fn download(number: u64) -> Result<Comic> {
-        let json = Self::download_json(Some(number))?;
-        Ok(Comic::new(json)?)
-    }
-
-    fn download_json(number: Option<u64>) -> Result<Value> {
-        let text = isahc::get(match number {
-            Some(number) => format!("https://xkcd.com/{}/info.0.json", number),
-            _ => String::from("https://xkcd.com/info.0.json"),
-        })?
-        .text()
-        .expect("XKCD should always give valid json");
-        Ok(serde_json::from_str(&text).expect("XKCD should always give valid json"))
-    }
-
-    fn switch_to_comic(&mut self, switch_to_comic: SwitchToComic) -> Result<()> {
-        self.last_seen_comic = match switch_to_comic {
+    fn get_comic_number(&mut self, switch_to_comic: SwitchToComic) -> Result<u64> {
+        Ok(match switch_to_comic {
             SwitchToComic::Next => {
                 if Self::get_latest_comic()? > self.last_seen_comic {
                     self.last_seen_comic + 1
@@ -114,8 +85,34 @@ impl ComicDownloader {
             SwitchToComic::Bookmarked => self.bookmarked_comic.unwrap_or(self.last_seen_comic),
             SwitchToComic::Specific(num) => num,
             SwitchToComic::LastSeen => self.last_seen_comic,
-        };
-        Ok(())
+        })
+    }
+
+    pub fn bookmark_comic(&mut self) {
+        self.bookmarked_comic = Some(self.last_seen_comic);
+    }
+
+    pub fn save(&self) -> Result<()> {
+        let json = json!({"last_seen_comic": self.last_seen_comic, "bookmarked_comic": self.bookmarked_comic}).to_string();
+        let path = Self::get_path_to_state_file();
+        fs::create_dir_all(path.parent().unwrap())?;
+        Ok(fs::write(path, json)?)
+    }
+
+    fn get_path_to_state_file() -> PathBuf {
+        let mut path = state_dir().unwrap_or_default();
+        path.push("oxikcde");
+        path.push("comic_downloader.json");
+        path
+    }
+
+    fn download_json(number: Option<u64>) -> Result<Value> {
+        let text = isahc::get(match number {
+            Some(number) => format!("https://xkcd.com/{}/info.0.json", number),
+            _ => String::from("https://xkcd.com/info.0.json"),
+        })?
+        .text()?;
+        Ok(serde_json::from_str(&text)?)
     }
 
     fn get_latest_comic() -> Result<u64> {

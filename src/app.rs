@@ -29,14 +29,15 @@ struct App {
 
 impl App {
     fn new(terminal: DefaultTerminal, cli: ArgMatches) -> Result<Self> {
-        let (comic_downloader, comic) = ComicDownloader::new(match cli.get_one::<u64>("number") {
-            Some(num) => SwitchToComic::Specific(num.to_owned()),
-            None => cli
-                .get_one::<SwitchToComic>("initial_comic")
-                .unwrap_or(&SwitchToComic::Latest)
-                .to_owned(),
-        })?;
-        let ui = Ui::new(terminal, comic)?;
+        let (comic_downloader, (comic, comic_number)) =
+            ComicDownloader::new(match cli.get_one::<u64>("number") {
+                Some(num) => SwitchToComic::Specific(num.to_owned()),
+                _ => cli
+                    .get_one::<SwitchToComic>("initial_comic")
+                    .unwrap_or(&SwitchToComic::Latest)
+                    .to_owned(),
+            });
+        let ui = Ui::new(terminal, comic, comic_number)?;
         Ok(Self {
             comic_downloader,
             ui,
@@ -45,9 +46,10 @@ impl App {
     fn handle_command(&mut self, command: CommandToApp) -> Result<()> {
         info!("Performing {:?}", command);
         match command {
-            SwitchToComic(action) => self
-                .ui
-                .render_new_comic(self.comic_downloader.switch(action)?),
+            SwitchToComic(action) => {
+                let (comic, comic_number) = self.comic_downloader.switch(action);
+                self.ui.render_new_comic(comic, comic_number)
+            }
             HandleResize => self.ui.handle_resize(),
             Quit => self.comic_downloader.save(),
             ToggleInvert => self.ui.toggle_invert(),

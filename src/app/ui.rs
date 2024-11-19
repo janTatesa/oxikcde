@@ -17,14 +17,20 @@ pub struct Ui {
     terminal: DefaultTerminal,
     picker: Picker,
     invert_image: bool,
-    comic: Comic,
+    comic: std::result::Result<Comic, String>,
+    comic_number: u64,
 }
 
 impl Ui {
-    pub fn new(terminal: DefaultTerminal, comic: Comic) -> Result<Self> {
+    pub fn new(terminal: DefaultTerminal, comic: Result<Comic>, comic_number: u64) -> Result<Self> {
         let picker = Picker::from_query_stdio()?;
+        let comic = match comic {
+            Ok(comic) => Ok(comic),
+            Err(e) => Err(e.to_string()),
+        };
         let mut ui = Self {
             terminal,
+            comic_number,
             picker,
             invert_image: true,
             comic,
@@ -37,8 +43,12 @@ impl Ui {
         self.render()
     }
 
-    pub fn render_new_comic(&mut self, comic: Comic) -> Result<()> {
-        self.comic = comic;
+    pub fn render_new_comic(&mut self, comic: Result<Comic>, comic_number: u64) -> Result<()> {
+        self.comic = match comic {
+            Ok(comic) => Ok(comic),
+            Err(e) => Err(e.to_string()),
+        };
+        self.comic_number = comic_number;
         self.invert_image = true;
         self.render()
     }
@@ -49,21 +59,27 @@ impl Ui {
     }
 
     fn render(&mut self) -> Result<()> {
+        match self.comic.clone() {
+            Ok(comic) => self.render_sucess(comic),
+            Err(e) => self.render_failure(e),
+        }
+    }
+    fn render_sucess(&mut self, comic: Comic) -> Result<()> {
         self.terminal.draw(|f| {
             let area = f.area();
             f.render_widget(
                 Block::new()
-                    .title_top(self.comic.date_uploaded.as_str().blue())
+                    .title_top(comic.date_uploaded.as_str().blue())
                     .title_top(
                         Line::styled(
-                            format!("{}: {}", self.comic.number, self.comic.name),
+                            format!("{}: {}", self.comic_number, comic.name),
                             Style::new().yellow().bold(),
                         )
                         .centered(),
                     ),
                 area,
             );
-            let alt_text = Paragraph::new(self.comic.alt_text.as_str())
+            let alt_text = Paragraph::new(comic.alt_text.as_str())
                 .centered()
                 .wrap(Wrap::default())
                 .dark_gray();
@@ -84,9 +100,9 @@ impl Ui {
                 .picker
                 .new_protocol(
                     if self.invert_image {
-                        invert_image(&self.comic.image)
+                        invert_image(&comic.image)
                     } else {
-                        self.comic.image.clone()
+                        comic.image.clone()
                     },
                     image_area,
                     Resize::Fit(None),
@@ -97,6 +113,25 @@ impl Ui {
             //TODO: resize the image
             let image_widget = Image::new(&image);
             f.render_widget(image_widget, image_area)
+        })?;
+        Ok(())
+    }
+
+    fn render_failure(&mut self, message: String) -> Result<()> {
+        self.terminal.draw(|f| {
+            f.render_widget(
+                Paragraph::new(format!(
+                    "Failed to download comic{}, error: {}, press d to download again",
+                    if self.comic_number == 0 {
+                        String::new()
+                    } else {
+                        format!(" number {}", self.comic_number)
+                    },
+                    message
+                ))
+                .wrap(Wrap::default()),
+                f.area(),
+            )
         })?;
         Ok(())
     }
