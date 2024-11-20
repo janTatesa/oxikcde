@@ -1,7 +1,8 @@
+use cli_log::debug;
 use color_eyre::Result;
 use image::{
     imageops::{grayscale, invert},
-    DynamicImage,
+    DynamicImage, ImageBuffer,
 };
 use ratatui::{
     layout::Rect,
@@ -10,7 +11,7 @@ use ratatui::{
     widgets::{Block, Paragraph, Wrap},
     DefaultTerminal,
 };
-use ratatui_image::{picker::Picker, Image, Resize};
+use ratatui_image::{picker::Picker, StatefulImage};
 
 use super::comic::Comic;
 pub struct Ui {
@@ -96,23 +97,16 @@ impl Ui {
                 ..area
             };
 
-            let image = self
-                .picker
-                .new_protocol(
-                    if self.invert_image {
-                        invert_image(&comic.image)
-                    } else {
-                        comic.image.clone()
-                    },
-                    image_area,
-                    Resize::Fit(None),
-                )
-                .expect("XKCD should always contain valid images");
+            let mut image = self.picker.new_resize_protocol(if self.invert_image {
+                invert_image(&comic.image)
+            } else {
+                comic.image
+            });
 
             // The image widget.
             //TODO: resize the image
-            let image_widget = Image::new(&image);
-            f.render_widget(image_widget, image_area)
+            let image_widget = StatefulImage::new(None);
+            f.render_stateful_widget(image_widget, image_area, &mut image)
         })?;
         Ok(())
     }
