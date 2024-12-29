@@ -1406,6 +1406,7 @@ dependencies = [
  "color-eyre",
  "crossterm",
  "dirs",
+ "eyre",
  "image",
  "isahc",
  "rand",

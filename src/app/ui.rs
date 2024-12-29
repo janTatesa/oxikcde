@@ -1,133 +1,118 @@
-use cli_log::debug;
-use color_eyre::Result;
+use crossterm::{
+    event::{KeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
+    execute,
+};
+use eyre::Result;
 use image::{
     imageops::{grayscale, invert},
-    DynamicImage, ImageBuffer,
+    DynamicImage,
 };
 use ratatui::{
-    layout::Rect,
+    layout::{Constraint, Direction, Layout},
     style::{Style, Stylize},
     text::Line,
     widgets::{Block, Paragraph, Wrap},
     DefaultTerminal,
 };
-use ratatui_image::{picker::Picker, StatefulImage};
+use ratatui_image::{picker::Picker, protocol::StatefulProtocol, StatefulImage};
 
 use super::comic::Comic;
 pub struct Ui {
     terminal: DefaultTerminal,
     picker: Picker,
     invert_image: bool,
-    comic: std::result::Result<Comic, String>,
-    comic_number: u64,
+}
+
+pub enum RenderOption {
+    ToggleInvert,
+    Resize,
+    BookmarkComic,
+    Error(String),
+    None,
 }
 
 impl Ui {
-    pub fn new(terminal: DefaultTerminal, comic: Result<Comic>, comic_number: u64) -> Result<Self> {
-        let picker = Picker::from_query_stdio()?;
-        let comic = match comic {
-            Ok(comic) => Ok(comic),
-            Err(e) => Err(e.to_string()),
-        };
-        let mut ui = Self {
+    pub fn new() -> Result<Self> {
+        let terminal = ratatui::init();
+        execute!(
+            std::io::stdout(),
+            PushKeyboardEnhancementFlags(KeyboardEnhancementFlags::REPORT_EVENT_TYPES)
+        )?;
+        Ok(Self {
             terminal,
-            comic_number,
-            picker,
+            picker: Picker::from_query_stdio()?,
             invert_image: true,
-            comic,
+        })
+    }
+
+    pub fn update(&mut self, comic: &Comic, option: RenderOption) -> Result<()> {
+        match option {
+            RenderOption::ToggleInvert => self.invert_image = !self.invert_image,
+            RenderOption::Resize => self.picker = Picker::from_query_stdio()?,
+            _ => {}
         };
-        ui.render()?;
-        Ok(ui)
-    }
-    pub fn handle_resize(&mut self) -> Result<()> {
-        self.picker = Picker::from_query_stdio()?;
-        self.render()
-    }
 
-    pub fn render_new_comic(&mut self, comic: Result<Comic>, comic_number: u64) -> Result<()> {
-        self.comic = match comic {
-            Ok(comic) => Ok(comic),
-            Err(e) => Err(e.to_string()),
-        };
-        self.comic_number = comic_number;
-        self.invert_image = true;
-        self.render()
-    }
-
-    pub fn toggle_invert(&mut self) -> Result<()> {
-        self.invert_image = !self.invert_image;
-        self.render()
-    }
-
-    fn render(&mut self) -> Result<()> {
-        match self.comic.clone() {
-            Ok(comic) => self.render_sucess(comic),
-            Err(e) => self.render_failure(e),
-        }
-    }
-    fn render_sucess(&mut self, comic: Comic) -> Result<()> {
+        let mut image = self.image_protocol(comic);
+        let title_block = Self::title_block(comic, option, self.invert_image);
+        let alt_text = Paragraph::new(comic.alt_text.as_str())
+            .centered()
+            .wrap(Wrap::default())
+            .dark_gray();
+        let image_widget = StatefulImage::new(None);
         self.terminal.draw(|f| {
-            let area = f.area();
-            f.render_widget(
-                Block::new()
-                    .title_top(comic.date_uploaded.as_str().blue())
-                    .title_top(
-                        Line::styled(
-                            format!("{}: {}", self.comic_number, comic.name),
-                            Style::new().yellow().bold(),
-                        )
-                        .centered(),
-                    ),
-                area,
-            );
-            let alt_text = Paragraph::new(comic.alt_text.as_str())
-                .centered()
-                .wrap(Wrap::default())
-                .dark_gray();
-            let alt_text_height = alt_text.line_count(area.width) as u16;
-            let alt_text_area = Rect {
-                y: area.height - alt_text_height,
-                height: alt_text_height,
-                ..area
-            };
-            f.render_widget(alt_text, alt_text_area);
-            let image_area = Rect {
-                y: area.y + 1,
-                height: area.height - 1 - alt_text_height,
-                ..area
-            };
-
-            let mut image = self.picker.new_resize_protocol(if self.invert_image {
-                invert_image(&comic.image)
-            } else {
-                comic.image
-            });
-
-            // The image widget.
-            //TODO: resize the image
-            let image_widget = StatefulImage::new(None);
-            f.render_stateful_widget(image_widget, image_area, &mut image)
-        })?;
-        Ok(())
-    }
-
-    fn render_failure(&mut self, message: String) -> Result<()> {
-        self.terminal.draw(|f| {
-            f.render_widget(
-                Paragraph::new(format!(
-                    "Failed to download comic{}, error: {}, press d to download again",
-                    if self.comic_number == 0 {
-                        String::new()
-                    } else {
-                        format!(" number {}", self.comic_number)
-                    },
-                    message
-                ))
-                .wrap(Wrap::default()),
-                f.area(),
+            let layout = Layout::new(
+                Direction::Vertical,
+                [
+                    Constraint::Length(1),
+                    Constraint::Min(0),
+                    Constraint::Length(alt_text.line_count(f.area().width) as u16),
+                ],
             )
+            .split(f.area());
+
+            f.render_widget(title_block, layout[0]);
+            f.render_widget(alt_text, layout[2]);
+            //TODO: resize the image
+            f.render_stateful_widget(image_widget, layout[1], &mut image);
         })?;
         Ok(())
+    }
+
+    fn title_block(comic: &Comic, option: RenderOption, invert_image: bool) -> Block {
+        let mut block = Block::new()
+            .title_top(comic.date_uploaded.as_str().blue())
+            .title_top(
+                Line::styled(
+                    format!("{}: {}", comic.number, comic.name),
+                    Style::new().yellow().bold(),
+                )
+                .centered(),
+            );
+        let message = match option {
+            RenderOption::ToggleInvert => Some(
+                format!(
+                    "Image inversion is now {}",
+                    if invert_image { "on" } else { "off" }
+                )
+                .magenta(),
+            ),
+            RenderOption::BookmarkComic => Some("Bookmarked comic!".cyan()),
+            RenderOption::Error(error) => Some(error.clone().red()),
+            _ => None,
+        };
+
+        if let Some(message) = message {
+            block = block.title_top(message.into_right_aligned_line())
+        }
+        block
+    }
+
+    fn image_protocol(&mut self, comic: &Comic) -> StatefulProtocol {
+        self.picker.new_resize_protocol(if self.invert_image {
+            invert_image(&comic.image)
+        } else {
+            comic.image.clone()
+        })
     }
 }
 
