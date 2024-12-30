@@ -4,7 +4,7 @@ mod event;
 mod ui;
 
 use self::CommandToApp::*;
-use clap::ValueEnum;
+use clap::{builder::OsStr, ArgMatches, ValueEnum};
 use cli::cli;
 use cli_log::info;
 use comic::{Comic, ComicDownloader};
@@ -20,9 +20,10 @@ pub struct App {
 
 impl App {
     pub fn run() -> Result<()> {
+        let cli = cli();
         let mut ui = Ui::new()?;
         let mut comic_downloader = ComicDownloader::new()?;
-        let comic = comic_downloader.switch(Self::initial_switch_to_comic())?;
+        let comic = comic_downloader.switch(Self::initial_switch_to_comic(&cli))?;
         ui.update(&comic, RenderOption::None)?;
         Self {
             comic_downloader,
@@ -32,13 +33,12 @@ impl App {
         .main_loop()
     }
 
-    fn initial_switch_to_comic() -> SwitchToComic {
-        let cli = cli();
+    fn initial_switch_to_comic(cli: &ArgMatches) -> SwitchToComic {
         cli.get_one::<u64>("number")
             .map(|num| SwitchToComic::Specific(num.to_owned()))
             .unwrap_or_else(|| {
                 cli.get_one::<SwitchToComic>("initial_comic")
-                    .unwrap_or(&SwitchToComic::Latest)
+                    .unwrap()
                     .to_owned()
             })
     }
@@ -95,7 +95,6 @@ impl From<CommandToApp> for RenderOption {
     }
 }
 
-#[allow(dead_code)]
 #[derive(Debug, Copy, Clone, ValueEnum)]
 pub enum SwitchToComic {
     #[clap(skip)]
@@ -109,4 +108,14 @@ pub enum SwitchToComic {
     #[clap(skip)]
     Specific(u64),
     LastSeen,
+}
+
+impl From<SwitchToComic> for OsStr {
+    // Required for having a default argument, we only need to implement it for latest
+    fn from(value: SwitchToComic) -> Self {
+        if let SwitchToComic::Latest = value {
+            return "latest".into();
+        }
+        unreachable!()
+    }
 }
