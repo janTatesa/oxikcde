@@ -14,7 +14,7 @@ use ratatui::{
     widgets::{Block, Paragraph, Wrap},
     DefaultTerminal,
 };
-use ratatui_image::{picker::Picker, protocol::StatefulProtocol, StatefulImage};
+use ratatui_image::{picker::Picker, protocol::StatefulProtocol, Resize, StatefulImage};
 
 use super::comic::Comic;
 pub struct Ui {
@@ -58,7 +58,8 @@ impl Ui {
             .centered()
             .wrap(Wrap::default())
             .dark_gray();
-        let image_widget = StatefulImage::new(None);
+        //TODO: Center the image
+        let image_widget = StatefulImage::default().resize(Resize::Scale(None));
         self.terminal.draw(|f| {
             let layout = Layout::new(
                 Direction::Vertical,
@@ -72,7 +73,6 @@ impl Ui {
 
             f.render_widget(title_block, layout[0]);
             f.render_widget(alt_text, layout[2]);
-            //TODO: resize the image
             f.render_stateful_widget(image_widget, layout[1], &mut image);
         })?;
         Ok(())
