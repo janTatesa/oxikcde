@@ -3,7 +3,7 @@ mod comic;
 mod event;
 mod ui;
 
-use self::CommandToApp::*;
+use self::{CommandToApp::*, OpenInBrowser::*};
 use clap::{builder::OsStr, ArgMatches, ValueEnum};
 use cli::cli;
 use cli_log::info;
@@ -67,10 +67,19 @@ impl App {
                 }
             }
             BookmarkComic => self.comic_downloader.bookmark_comic(),
+            OpenInBrowser(open_in_browser) => self.open_in_browser(open_in_browser)?,
             _ => {}
         };
 
         self.ui.update(&self.comic, command.into())?;
+        Ok(())
+    }
+
+    fn open_in_browser(&self, open_in_browser: OpenInBrowser) -> Result<()> {
+        open::that(match open_in_browser {
+            Comic => format!("https://xkcd.com/{}", self.comic.number),
+            Explanation => format!("https://explainxkcd.com/{}", self.comic.number),
+        })?;
         Ok(())
     }
 }
@@ -82,6 +91,13 @@ enum CommandToApp {
     Resize,
     ToggleInvert,
     BookmarkComic,
+    OpenInBrowser(OpenInBrowser),
+}
+
+#[derive(Debug, Copy, Clone)]
+enum OpenInBrowser {
+    Comic,
+    Explanation,
 }
 
 impl From<CommandToApp> for RenderOption {
@@ -90,6 +106,7 @@ impl From<CommandToApp> for RenderOption {
             Resize => RenderOption::Resize,
             ToggleInvert => RenderOption::ToggleInvert,
             BookmarkComic => RenderOption::BookmarkComic,
+            OpenInBrowser(open_in_browser) => RenderOption::OpenInBrowser(open_in_browser),
             _ => RenderOption::None,
         }
     }

@@ -16,7 +16,7 @@ use ratatui::{
 };
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol, Resize, StatefulImage};
 
-use super::comic::Comic;
+use super::{comic::Comic, OpenInBrowser};
 pub struct Ui {
     terminal: DefaultTerminal,
     picker: Picker,
@@ -28,6 +28,7 @@ pub enum RenderOption {
     Resize,
     BookmarkComic,
     Error(String),
+    OpenInBrowser(OpenInBrowser),
     None,
 }
 
@@ -91,13 +92,23 @@ impl Ui {
         let message = match option {
             RenderOption::ToggleInvert => Some(
                 format!(
-                    "Image inversion is now {}",
+                    "Image inversion is now {}!",
                     if invert_image { "on" } else { "off" }
                 )
                 .magenta(),
             ),
             RenderOption::BookmarkComic => Some("Bookmarked comic!".cyan()),
             RenderOption::Error(error) => Some(error.clone().red()),
+            RenderOption::OpenInBrowser(open_in_browser) => Some(
+                format!(
+                    "Opened {} in your web browser!",
+                    match open_in_browser {
+                        OpenInBrowser::Comic => "comic",
+                        OpenInBrowser::Explanation => "explanation",
+                    },
+                )
+                .green(),
+            ),
             _ => None,
         };
 

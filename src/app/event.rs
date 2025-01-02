@@ -1,6 +1,7 @@
 use super::SwitchToComic;
 use crate::app::{
     CommandToApp::{self, *},
+    OpenInBrowser::*,
     SwitchToComic::*,
 };
 use cli_log::debug;
@@ -63,6 +64,8 @@ fn get_key_event(code: KeyCode) -> Option<CommandToApp> {
 
 fn handle_char_keypress(char: char) -> Option<CommandToApp> {
     match char {
+        'e' => Some(OpenInBrowser(Explanation)),
+        'o' => Some(OpenInBrowser(Comic)),
         'q' => Some(Quit),
         'p' => Some(SwitchToComic(Previous)),
         'n' => Some(SwitchToComic(Next)),
