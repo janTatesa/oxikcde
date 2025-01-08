@@ -16,17 +16,14 @@ pub fn get_command() -> Result<CommandToApp> {
     loop {
         let event = event::read()?;
         debug!("Event: {:?}", event);
-        let command = match event {
+        match event {
             Event::Key(key_event) if key_event.kind == KeyEventKind::Press => {
-                get_key_event(key_event.code)
+                if let Some(command) = get_key_event(key_event.code) {
+                    return Ok(command);
+                }
             }
-            Event::Resize(..) => Some(Resize),
-            _ => None,
+            _ => {}
         };
-
-        if let Some(command) = command {
-            return Ok(command);
-        }
     }
 }
 

@@ -21,9 +21,9 @@ pub struct App {
 impl App {
     pub fn run() -> Result<()> {
         let cli = cli();
-        let mut ui = Ui::new()?;
         let mut comic_downloader = ComicDownloader::new()?;
-        let comic = comic_downloader.switch(Self::initial_switch_to_comic(&cli))?;
+        let (comic, image) = comic_downloader.switch(Self::initial_switch_to_comic(&cli))?;
+        let mut ui = Ui::new(image)?;
         ui.update(&comic, RenderOption::None)?;
         Self {
             comic_downloader,
@@ -57,14 +57,17 @@ impl App {
     fn handle_command(&mut self, command: CommandToApp) -> Result<()> {
         match command {
             SwitchToComic(action) => {
-                self.comic = match self.comic_downloader.switch(action) {
-                    Ok(comic) => comic,
+                let (comic, image) = match self.comic_downloader.switch(action) {
+                    Ok((comic, image)) => (comic, image),
                     Err(error) => {
                         return self
                             .ui
                             .update(&self.comic, RenderOption::Error(error.to_string()))
                     }
-                }
+                };
+
+                self.comic = comic;
+                return self.ui.update(&self.comic, RenderOption::NewComic(image));
             }
             BookmarkComic => self.comic_downloader.bookmark_comic(),
             OpenInBrowser(open_in_browser) => self.open_in_browser(open_in_browser)?,
@@ -88,7 +91,6 @@ impl App {
 enum CommandToApp {
     Quit,
     SwitchToComic(SwitchToComic),
-    Resize,
     ToggleInvert,
     BookmarkComic,
     OpenInBrowser(OpenInBrowser),
@@ -103,7 +105,6 @@ enum OpenInBrowser {
 impl From<CommandToApp> for RenderOption {
     fn from(val: CommandToApp) -> Self {
         match val {
-            Resize => RenderOption::Resize,
             ToggleInvert => RenderOption::ToggleInvert,
             BookmarkComic => RenderOption::BookmarkComic,
             OpenInBrowser(open_in_browser) => RenderOption::OpenInBrowser(open_in_browser),

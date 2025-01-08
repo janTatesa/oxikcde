@@ -22,30 +22,6 @@ pub struct Comic {
     pub number: u64,
     pub alt_text: String,
     pub date_uploaded: String,
-    pub image: DynamicImage,
-}
-
-impl Comic {
-    fn new(number: u64, json: Value) -> Result<Self> {
-        let alt_text = json["alt"].as_str().unwrap().to_string();
-        let name = json["title"].as_str().unwrap().to_owned();
-        let date_uploaded = format!(
-            "{}-{:02}-{:02}",
-            json["year"].as_str().unwrap(),
-            json["month"].as_str().unwrap().parse::<u16>().unwrap(),
-            json["day"].as_str().unwrap().parse::<u16>().unwrap(),
-        );
-
-        let image =
-            image::load_from_memory(&isahc::get(json["img"].as_str().unwrap())?.bytes()?).unwrap();
-        Ok(Comic {
-            number,
-            alt_text,
-            date_uploaded,
-            image,
-            name,
-        })
-    }
 }
 
 impl ComicDownloader {
@@ -70,17 +46,34 @@ impl ComicDownloader {
         Ok(serde_json::from_str(&json)?)
     }
 
-    pub fn switch(&mut self, switch_to_comic: SwitchToComic) -> Result<Comic> {
+    pub fn switch(&mut self, switch_to_comic: SwitchToComic) -> Result<(Comic, DynamicImage)> {
         self.last_seen_comic = self.get_comic_number(switch_to_comic)?;
         self.download()
             .map_err(|e| eyre!("Failed to download comic {}: {e}", self.last_seen_comic,))
     }
 
-    fn download(&self) -> Result<Comic> {
-        Comic::new(
-            self.last_seen_comic,
-            Self::download_json(Some(self.last_seen_comic))?,
-        )
+    fn download(&self) -> Result<(Comic, DynamicImage)> {
+        let json = Self::download_json(Some(self.last_seen_comic))?;
+        let alt_text = json["alt"].as_str().unwrap().to_string();
+        let name = json["title"].as_str().unwrap().to_owned();
+        let date_uploaded = format!(
+            "{}-{:02}-{:02}",
+            json["year"].as_str().unwrap(),
+            json["month"].as_str().unwrap().parse::<u16>().unwrap(),
+            json["day"].as_str().unwrap().parse::<u16>().unwrap(),
+        );
+        let image_url = json["img"].as_str().unwrap();
+        let image_bytes = &isahc::get(image_url)?.bytes()?;
+        let image = image::load_from_memory(image_bytes).unwrap();
+        Ok((
+            Comic {
+                name,
+                number: self.last_seen_comic,
+                alt_text,
+                date_uploaded,
+            },
+            image,
+        ))
     }
 
     fn get_comic_number(&mut self, switch_to_comic: SwitchToComic) -> Result<u64> {
