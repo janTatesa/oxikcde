@@ -22,7 +22,7 @@ impl App {
     pub fn run() -> Result<()> {
         let cli = cli();
         let mut comic_downloader = ComicDownloader::new()?;
-        let (comic, image) = comic_downloader.switch(Self::initial_switch_to_comic(&cli))?;
+        let (comic, image) = comic_downloader.switch(initial_switch_to_comic(&cli))?;
         let mut ui = Ui::new(image)?;
         ui.update(&comic, RenderOption::None)?;
         Self {
@@ -31,16 +31,6 @@ impl App {
             comic,
         }
         .main_loop()
-    }
-
-    fn initial_switch_to_comic(cli: &ArgMatches) -> SwitchToComic {
-        cli.get_one::<u64>("number")
-            .map(|num| SwitchToComic::Specific(num.to_owned()))
-            .unwrap_or_else(|| {
-                cli.get_one::<SwitchToComic>("initial_comic")
-                    .unwrap()
-                    .to_owned()
-            })
     }
 
     fn main_loop(mut self) -> Result<()> {
@@ -85,6 +75,16 @@ impl App {
         })?;
         Ok(())
     }
+}
+
+fn initial_switch_to_comic(cli: &ArgMatches) -> SwitchToComic {
+    cli.get_one::<u64>("number")
+        .map(|num| SwitchToComic::Specific(num.to_owned()))
+        .unwrap_or_else(|| {
+            cli.get_one::<SwitchToComic>("initial_comic")
+                .unwrap()
+                .to_owned()
+        })
 }
 
 #[derive(Debug, Copy, Clone)]

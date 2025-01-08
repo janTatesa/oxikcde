@@ -26,11 +26,11 @@ pub struct Comic {
 
 impl ComicDownloader {
     pub fn new() -> Result<Self> {
-        let json = match fs::read_to_string(Self::get_path_to_state_file()) {
+        let json = match fs::read_to_string(get_path_to_state_file()) {
             Ok(file) => file,
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
                 return Ok(Self {
-                    last_seen_comic: Self::get_latest_comic_number()?,
+                    last_seen_comic: get_latest_comic_number()?,
                     bookmarked_comic: None,
                     rng: thread_rng(),
                 })
@@ -38,7 +38,7 @@ impl ComicDownloader {
             Err(error) => {
                 return Err(eyre!(
                     "Failed to read {}: {error}",
-                    Self::get_path_to_state_file().display(),
+                    get_path_to_state_file().display(),
                 ))
             }
         };
@@ -53,7 +53,7 @@ impl ComicDownloader {
     }
 
     fn download(&self) -> Result<(Comic, DynamicImage)> {
-        let json = Self::download_json(Some(self.last_seen_comic))?;
+        let json = download_json(Some(self.last_seen_comic))?;
         let alt_text = json["alt"].as_str().unwrap().to_string();
         let name = json["title"].as_str().unwrap().to_owned();
         let date_uploaded = format!(
@@ -79,7 +79,7 @@ impl ComicDownloader {
     fn get_comic_number(&mut self, switch_to_comic: SwitchToComic) -> Result<u64> {
         Ok(match switch_to_comic {
             Next => {
-                if Self::get_latest_comic_number()? > self.last_seen_comic {
+                if get_latest_comic_number()? > self.last_seen_comic {
                     self.last_seen_comic + 1
                 } else {
                     self.last_seen_comic
@@ -92,9 +92,9 @@ impl ComicDownloader {
                     1
                 }
             }
-            Latest => Self::get_latest_comic_number()?,
+            Latest => get_latest_comic_number()?,
             First => 1,
-            Random => self.rng.gen_range(1..Self::get_latest_comic_number()?),
+            Random => self.rng.gen_range(1..get_latest_comic_number()?),
             Bookmarked => self.bookmarked_comic.unwrap_or(self.last_seen_comic),
             Specific(num) => num,
             LastSeen => self.last_seen_comic,
@@ -106,32 +106,32 @@ impl ComicDownloader {
     }
 
     pub fn save_data(&self) -> Result<()> {
-        let path = Self::get_path_to_state_file();
+        let path = get_path_to_state_file();
         fs::create_dir_all(path.parent().unwrap())?;
         Ok(fs::write(path, serde_json::to_string(self).unwrap())?)
     }
+}
 
-    fn get_path_to_state_file() -> PathBuf {
-        let mut path = state_dir().unwrap_or_default();
-        path.push("oxikcde");
-        path.push("comic_downloader.json");
-        path
-    }
+fn get_path_to_state_file() -> PathBuf {
+    let mut path = state_dir().unwrap_or_default();
+    path.push("oxikcde");
+    path.push("comic_downloader.json");
+    path
+}
 
-    fn download_json(number: Option<u64>) -> Result<Value> {
-        let text = isahc::get(match number {
-            Some(number) => format!("https://xkcd.com/{number}/info.0.json"),
-            _ => String::from("https://xkcd.com/info.0.json"),
-        })?
-        .text()?;
+fn download_json(number: Option<u64>) -> Result<Value> {
+    let text = isahc::get(match number {
+        Some(number) => format!("https://xkcd.com/{number}/info.0.json"),
+        _ => String::from("https://xkcd.com/info.0.json"),
+    })?
+    .text()?;
 
-        Ok(serde_json::from_str(&text)?)
-    }
+    Ok(serde_json::from_str(&text)?)
+}
 
-    fn get_latest_comic_number() -> Result<u64> {
-        let json = Self::download_json(None)
-            .map_err(|error| eyre!("Failed to determine latest comic number: {error}"))?;
+fn get_latest_comic_number() -> Result<u64> {
+    let json = download_json(None)
+        .map_err(|error| eyre!("Failed to determine latest comic number: {error}"))?;
 
-        Ok(json["num"].as_u64().unwrap())
-    }
+    Ok(json["num"].as_u64().unwrap())
 }

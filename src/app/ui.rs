@@ -85,7 +85,7 @@ impl Ui {
             }
             _ => None,
         };
-        let title_block = Self::title_block(comic, message);
+        let title_block = title_block(comic, message);
 
         let image = if self.invert_image {
             &mut self.inverted_image_protocol
@@ -116,23 +116,23 @@ impl Ui {
         })?;
         Ok(())
     }
+}
 
-    fn title_block<'a>(comic: &'a Comic, message: Option<Span<'a>>) -> Block<'a> {
-        let mut block = Block::new()
-            .title_top(comic.date_uploaded.as_str().blue())
-            .title_top(
-                Line::styled(
-                    format!("{}: {}", comic.number, comic.name),
-                    Style::new().yellow().bold(),
-                )
-                .centered(),
-            );
+fn title_block<'a>(comic: &'a Comic, message: Option<Span<'a>>) -> Block<'a> {
+    let mut block = Block::new()
+        .title_top(comic.date_uploaded.as_str().blue())
+        .title_top(
+            Line::styled(
+                format!("{}: {}", comic.number, comic.name),
+                Style::new().yellow().bold(),
+            )
+            .centered(),
+        );
 
-        if let Some(message) = message {
-            block = block.title_top(message.into_right_aligned_line())
-        }
-        block
+    if let Some(message) = message {
+        block = block.title_top(message.into_right_aligned_line())
     }
+    block
 }
 
 fn invert_image(image: &DynamicImage) -> DynamicImage {
