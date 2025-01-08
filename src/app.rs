@@ -91,7 +91,7 @@ fn initial_switch_to_comic(cli: &ArgMatches) -> SwitchToComic {
 enum CommandToApp {
     Quit,
     SwitchToComic(SwitchToComic),
-    ToggleInvert,
+    ToggleProcessing,
     BookmarkComic,
     OpenInBrowser(OpenInBrowser),
 }
@@ -105,7 +105,7 @@ enum OpenInBrowser {
 impl From<CommandToApp> for RenderOption {
     fn from(val: CommandToApp) -> Self {
         match val {
-            ToggleInvert => RenderOption::ToggleInvert,
+            ToggleProcessing => RenderOption::ToggleInvert,
             BookmarkComic => RenderOption::BookmarkComic,
             OpenInBrowser(open_in_browser) => RenderOption::OpenInBrowser(open_in_browser),
             _ => RenderOption::None,

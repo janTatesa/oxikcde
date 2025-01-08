@@ -68,7 +68,7 @@ fn handle_char_keypress(char: char) -> Option<CommandToApp> {
         'n' => Some(SwitchToComic(Next)),
         'f' => Some(SwitchToComic(First)),
         'l' => Some(SwitchToComic(Latest)),
-        'i' => Some(ToggleInvert),
+        't' => Some(ToggleProcessing),
         'b' => Some(BookmarkComic),
         'r' => Some(SwitchToComic(Random)),
         'd' => Some(SwitchToComic(LastSeen)),
