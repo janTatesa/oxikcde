@@ -94,6 +94,7 @@ enum CommandToApp {
     ToggleProcessing,
     BookmarkComic,
     OpenInBrowser(OpenInBrowser),
+    HandleResize,
 }
 
 #[derive(Debug, Copy, Clone)]

@@ -22,6 +22,7 @@ pub fn get_command() -> Result<CommandToApp> {
                     return Ok(command);
                 }
             }
+            Event::Resize(..) => return Ok(HandleResize),
             _ => {}
         };
     }
