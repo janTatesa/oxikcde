@@ -1,43 +1,57 @@
-mod cli;
 mod comic;
+mod config;
+pub use config::print_default_config;
 mod event;
 mod ui;
 
-use self::{CommandToApp::*, OpenInBrowser::*};
 use clap::{builder::OsStr, ArgMatches, ValueEnum};
-use cli::cli;
 use cli_log::info;
-use comic::{Comic, ComicDownloader};
-use event::get_command;
+use colors_transform::Color;
+use comic::*;
+use config::Config;
+use event::EventHandler;
 use eyre::Result;
-use ui::{RenderOption, Ui};
+use image::Rgb;
+use std::path::PathBuf;
+use strum::{Display, EnumString};
+use ui::*;
 
 pub struct App {
     comic_downloader: ComicDownloader,
+    event_handler: EventHandler,
+    xkcd_url: String,
+    explanation_url: String,
     ui: Ui,
     comic: Comic,
 }
 
 impl App {
-    pub fn run() -> Result<()> {
-        let cli = cli();
+    pub fn run(cli: ArgMatches) -> Result<()> {
+        let config = Config::new(
+            cli.get_one::<PathBuf>("config_path")
+                .expect("Option has default value"),
+        )?;
         let mut comic_downloader = ComicDownloader::new()?;
         let (comic, image) = comic_downloader.switch(initial_switch_to_comic(&cli))?;
-        let mut ui = Ui::new(image)?;
+        let mut ui = Ui::new(image, config.styling, config.terminal, config.keep_colors)?;
         ui.update(&comic, RenderOption::None)?;
         Self {
             comic_downloader,
             ui,
             comic,
+            event_handler: EventHandler::new(config.keybindings),
+
+            xkcd_url: config.url,
+            explanation_url: config.explanation_url,
         }
         .main_loop()
     }
 
     fn main_loop(mut self) -> Result<()> {
         loop {
-            let command = get_command()?;
+            let command = self.event_handler.get_command()?;
             info!("Performing {:?}", command);
-            if let Quit = command {
+            if let CommandToApp::Quit = command {
                 return self.comic_downloader.save_data();
             }
             self.handle_command(command)?
@@ -46,33 +60,46 @@ impl App {
 
     fn handle_command(&mut self, command: CommandToApp) -> Result<()> {
         match command {
-            SwitchToComic(action) => {
-                let (comic, image) = match self.comic_downloader.switch(action) {
-                    Ok((comic, image)) => (comic, image),
-                    Err(error) => {
-                        return self
-                            .ui
-                            .update(&self.comic, RenderOption::Error(error.to_string()))
-                    }
-                };
-
-                self.comic = comic;
-                return self.ui.update(&self.comic, RenderOption::NewComic(image));
+            CommandToApp::SwitchToComic(switch_to_comic) => {
+                return self.switch_to_comic(switch_to_comic)
             }
-            BookmarkComic => self.comic_downloader.bookmark_comic(),
-            OpenInBrowser(open_in_browser) => self.open_in_browser(open_in_browser)?,
+            CommandToApp::BookmarkComic => self.comic_downloader.bookmark_comic(),
+            CommandToApp::OpenInBrowser(open_in_browser) => {
+                self.open_in_browser(open_in_browser)?
+            }
+            CommandToApp::None => return Ok(()),
             _ => {}
         };
 
-        self.ui.update(&self.comic, command.into())?;
+        self.update_ui(command.into())?;
         Ok(())
     }
 
+    fn switch_to_comic(&mut self, switch_to_comic: SwitchToComic) -> Result<()> {
+        let option = match self.comic_downloader.switch(switch_to_comic) {
+            Ok((comic, image)) => {
+                self.comic = comic;
+                RenderOption::NewComic(image)
+            }
+            Err(error) => RenderOption::ShowError(error.to_string()),
+        };
+
+        self.update_ui(option)
+    }
+
+    fn update_ui(&mut self, option: RenderOption) -> Result<()> {
+        self.ui.update(&self.comic, option)
+    }
+
     fn open_in_browser(&self, open_in_browser: OpenInBrowser) -> Result<()> {
-        open::that(match open_in_browser {
-            Comic => format!("https://xkcd.com/{}", self.comic.number),
-            Explanation => format!("https://explainxkcd.com/{}", self.comic.number),
-        })?;
+        open::that(format!(
+            "{}{}",
+            match open_in_browser {
+                OpenInBrowser::Comic => &self.xkcd_url,
+                OpenInBrowser::Explanation => &self.explanation_url,
+            },
+            self.comic.number(),
+        ))?;
         Ok(())
     }
 }
@@ -81,40 +108,34 @@ fn initial_switch_to_comic(cli: &ArgMatches) -> SwitchToComic {
     cli.get_one::<u64>("number")
         .map(|num| SwitchToComic::Specific(num.to_owned()))
         .unwrap_or_else(|| {
-            cli.get_one::<SwitchToComic>("initial_comic")
-                .unwrap()
-                .to_owned()
+            *cli.get_one("initial_comic")
+                .expect("Option has default value")
         })
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumString)]
+#[strum(serialize_all = "snake_case")]
 enum CommandToApp {
     Quit,
+    #[strum(disabled)]
     SwitchToComic(SwitchToComic),
     ToggleProcessing,
     BookmarkComic,
+    #[strum(disabled)]
     OpenInBrowser(OpenInBrowser),
     HandleResize,
+    None,
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, EnumString, Display)]
+#[strum(serialize_all = "snake_case")]
 enum OpenInBrowser {
     Comic,
     Explanation,
 }
 
-impl From<CommandToApp> for RenderOption {
-    fn from(val: CommandToApp) -> Self {
-        match val {
-            ToggleProcessing => RenderOption::ToggleInvert,
-            BookmarkComic => RenderOption::BookmarkComic,
-            OpenInBrowser(open_in_browser) => RenderOption::OpenInBrowser(open_in_browser),
-            _ => RenderOption::None,
-        }
-    }
-}
-
-#[derive(Debug, Copy, Clone, ValueEnum)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Display, EnumString, ValueEnum)]
+#[strum(serialize_all = "snake_case")]
 pub enum SwitchToComic {
     #[clap(skip)]
     Next,
@@ -130,11 +151,26 @@ pub enum SwitchToComic {
 }
 
 impl From<SwitchToComic> for OsStr {
-    // Required for having a default argument, we only need to implement it for latest
+    // Required for having a default argument
     fn from(value: SwitchToComic) -> Self {
-        if let SwitchToComic::Latest = value {
-            return "latest".into();
-        }
-        unreachable!()
+        value.to_string().into()
     }
+}
+
+impl From<CommandToApp> for RenderOption {
+    fn from(val: CommandToApp) -> Self {
+        match val {
+            CommandToApp::ToggleProcessing => RenderOption::ToggleProcessing,
+            CommandToApp::BookmarkComic => RenderOption::ShowBookmarkComicMessage,
+            CommandToApp::OpenInBrowser(open_in_browser) => {
+                RenderOption::ShowOpenInBrowserMessage(open_in_browser)
+            }
+            _ => RenderOption::None,
+        }
+    }
+}
+
+fn parse_image_rgb(str: &str) -> Option<Rgb<u8>> {
+    let rgb = colors_transform::Rgb::from_hex_str(str).ok()?.as_tuple();
+    Some(Rgb::from([rgb.0 as u8, rgb.1 as u8, rgb.2 as u8]))
 }

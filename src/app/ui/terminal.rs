@@ -1,4 +1,3 @@
-use colors_transform::Color;
 use crossterm::{
     event::{KeyboardEnhancementFlags, PushKeyboardEnhancementFlags},
     execute,
@@ -6,6 +5,8 @@ use crossterm::{
 use eyre::Result;
 use image::Rgb;
 use ratatui::DefaultTerminal;
+
+use crate::app::parse_image_rgb;
 
 pub fn initialise_terminal() -> Result<DefaultTerminal> {
     let terminal = ratatui::init();
@@ -25,8 +26,5 @@ pub fn get_color(code: u8) -> Result<Rgb<u8>> {
     (8..19)
         .step_by(5)
         .for_each(|i| hex.push_str(&string[i..(i + 2)]));
-    let rgb = colors_transform::Rgb::from_hex_str(&hex)
-        .unwrap()
-        .as_tuple();
-    Ok(Rgb::from([rgb.0 as u8, rgb.1 as u8, rgb.2 as u8]))
+    Ok(parse_image_rgb(&hex).expect("The terminal should always give correct code"))
 }

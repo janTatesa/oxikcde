@@ -1,146 +1,153 @@
 mod image;
-mod terminal;
+pub mod terminal;
 
-use super::{comic::Comic, OpenInBrowser};
-use ::image::{DynamicImage, Pixel};
+use super::{comic::Comic, config::StylingConfig, config::TerminalConfig, OpenInBrowser};
+use ::image::DynamicImage;
 use eyre::Result;
-use image::process_image;
+use image::*;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
-    style::{Style, Stylize},
-    text::{Line, Span},
+    style::Styled,
+    text::Line,
     widgets::{Block, Paragraph, Wrap},
-    DefaultTerminal,
+    DefaultTerminal, Frame,
 };
-use ratatui_image::{picker::Picker, protocol::StatefulProtocol, Resize, StatefulImage};
-use terminal::{get_color, initialise_terminal, BACKGROUND_COLOR, FOREGROUND_COLOR};
+use ratatui_image::protocol::StatefulProtocol;
+use terminal::*;
 
-type Color = [u8; 3];
 pub struct Ui {
     terminal: DefaultTerminal,
-    picker: Picker,
-    original_image_protocol: StatefulProtocol,
-    inverted_image_protocol: StatefulProtocol,
+    image_protocols: ImageProtocols,
+    image_processor: ImageProcessor,
     process_image: bool,
-    text_color: Color,
-    background_color: Color,
+    styling_config: StylingConfig,
 }
 
 pub enum RenderOption {
-    ToggleInvert,
-    BookmarkComic,
-    Error(String),
-    OpenInBrowser(OpenInBrowser),
+    ToggleProcessing,
+    ShowBookmarkComicMessage,
+    ShowError(String),
+    ShowOpenInBrowserMessage(OpenInBrowser),
     NewComic(DynamicImage),
     None,
 }
 
 impl Ui {
-    pub fn new(original_image: DynamicImage) -> Result<Self> {
+    pub fn new(
+        original_image: DynamicImage,
+        styling_config: StylingConfig,
+        terminal_config: TerminalConfig,
+        keep_colors: bool,
+    ) -> Result<Self> {
         let terminal = initialise_terminal()?;
-        let (text_color, background_color) =
-            (get_color(FOREGROUND_COLOR)?, get_color(BACKGROUND_COLOR)?);
-        let mut picker = Picker::from_query_stdio()?;
-        picker.set_background_color(background_color.to_rgba().0);
-        let (text_color, background_color) = (text_color.0, background_color.0);
-        let inverted_image_protocol = picker.new_resize_protocol(process_image(
-            text_color,
-            background_color,
-            &original_image,
-        ));
-        let original_image_protocol = picker.new_resize_protocol(original_image);
+        let image_processor = ImageProcessor::new(
+            terminal_config
+                .foreground_color
+                .map(Ok)
+                .unwrap_or_else(|| get_color(FOREGROUND_COLOR))?,
+            terminal_config
+                .background_color
+                .map(Ok)
+                .unwrap_or_else(|| get_color(BACKGROUND_COLOR))?,
+            keep_colors,
+        )?;
+        let image_protocols = image_processor.image_protocols(original_image);
         Ok(Self {
             terminal,
-            picker,
             process_image: true,
-            original_image_protocol,
-            inverted_image_protocol,
-            text_color,
-            background_color,
+            styling_config,
+            image_protocols,
+            image_processor,
         })
     }
 
     pub fn update(&mut self, comic: &Comic, option: RenderOption) -> Result<()> {
         let message = match option {
-            RenderOption::ToggleInvert => {
+            RenderOption::ToggleProcessing => {
                 self.process_image = !self.process_image;
                 Some(
                     format!(
                         "Image processing is now {}!",
                         if self.process_image { "on" } else { "off" }
                     )
-                    .magenta(),
+                    .set_style(self.styling_config.messages_style),
                 )
             }
-            RenderOption::BookmarkComic => Some("Bookmarked comic!".cyan()),
-            RenderOption::OpenInBrowser(open_in_browser) => Some(
-                format!(
-                    "Opened {} in your web browser!",
-                    match open_in_browser {
-                        OpenInBrowser::Comic => "comic",
-                        OpenInBrowser::Explanation => "explanation",
-                    },
-                )
-                .green(),
+            RenderOption::ShowBookmarkComicMessage => {
+                Some("Bookmarked comic!".set_style(self.styling_config.messages_style))
+            }
+            RenderOption::ShowOpenInBrowserMessage(open_in_browser) => Some(
+                format!("Opened {open_in_browser} in your web browser!",)
+                    .set_style(self.styling_config.messages_style),
             ),
-            RenderOption::Error(error) => Some(error.red()),
+            RenderOption::ShowError(error) => {
+                Some(error.set_style(self.styling_config.errors_style))
+            }
             RenderOption::NewComic(image) => {
-                self.inverted_image_protocol = self.picker.new_resize_protocol(process_image(
-                    self.text_color,
-                    self.background_color,
-                    &image,
-                ));
-                self.original_image_protocol = self.picker.new_resize_protocol(image);
+                self.image_protocols = self.image_processor.image_protocols(image);
                 None
             }
             _ => None,
         };
-        let title_block = title_block(comic, message);
 
-        let image = if self.process_image {
-            &mut self.inverted_image_protocol
-        } else {
-            &mut self.original_image_protocol
-        };
+        let mut title_block = Block::new()
+            .title_top(
+                comic
+                    .date_uploaded()
+                    .as_str()
+                    .set_style(self.styling_config.date_style),
+            )
+            .title_top(
+                Line::styled(
+                    format!("{}: {}", comic.number(), comic.name()),
+                    self.styling_config.title_style,
+                )
+                .centered(),
+            );
 
-        let alt_text = Paragraph::new(comic.alt_text.as_str())
+        if let Some(message) = message {
+            title_block = title_block.title_top(message.into_right_aligned_line())
+        }
+
+        let alt_text = Paragraph::new(comic.alt_text().as_str())
             .centered()
             .wrap(Wrap::default())
-            .dark_gray();
-        //TODO: Center the image
-        let image_widget = StatefulImage::default().resize(Resize::Scale(None));
-        self.terminal.draw(|f| {
-            let layout = Layout::new(
-                Direction::Vertical,
-                [
-                    Constraint::Length(1),
-                    Constraint::Min(0),
-                    Constraint::Length(alt_text.line_count(f.area().width) as u16),
-                ],
-            )
-            .split(f.area());
+            .set_style(self.styling_config.alt_text_style);
 
-            f.render_widget(title_block, layout[0]);
-            f.render_widget(alt_text, layout[2]);
-            f.render_stateful_widget(image_widget, layout[1], image);
+        self.terminal.draw(|frame| {
+            render(
+                title_block,
+                alt_text,
+                self.image_protocols.get(self.process_image),
+                frame,
+            )
         })?;
         Ok(())
     }
 }
 
-fn title_block<'a>(comic: &'a Comic, message: Option<Span<'a>>) -> Block<'a> {
-    let mut block = Block::new()
-        .title_top(comic.date_uploaded.as_str().blue())
-        .title_top(
-            Line::styled(
-                format!("{}: {}", comic.number, comic.name),
-                Style::new().yellow().bold(),
-            )
-            .centered(),
-        );
+fn render(
+    title_block: Block,
+    alt_text: Paragraph,
+    image: &mut StatefulProtocol,
+    frame: &mut Frame,
+) {
+    //TODO: Center the image
+    let alt_text_height = alt_text.line_count(frame.area().width) as u16;
+    let layout = layout(alt_text_height).split(frame.area());
 
-    if let Some(message) = message {
-        block = block.title_top(message.into_right_aligned_line())
-    }
-    block
+    frame.render_widget(title_block, layout[0]);
+    frame.render_widget(alt_text, layout[2]);
+    frame.render_stateful_widget(image_widget(), layout[1], image);
+}
+
+fn layout(alt_text_height: u16) -> Layout {
+    Layout::new(
+        Direction::Vertical,
+        [
+            Constraint::Length(1),
+            Constraint::Min(0),
+            Constraint::Length(alt_text_height),
+        ],
+    )
 }

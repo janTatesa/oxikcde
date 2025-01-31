@@ -1,0 +1,39 @@
+# Defaults to false as colors are buggy with processing
+# When set to false will treat the colors as if they were grayscale
+keep_colors = false
+# When opening the comic/explanation in browser, to this url will be the comic number appended
+url = "https://m.xkcd.com/"
+explanation_url = "https://explainxkcd.com/"
+[styling]
+title_style = "yellow bold"
+alt_text_style = "dark_gray italic"
+date_style = "blue underlined"
+errors_style = "red bold"
+# Style for messages like "bookmarked comic" or "opened in browser"
+messages_style = "magenta"
+
+[terminal]
+# Foreground and background color of the terminal, used to theme the image. If set to "query", will query the terminal for it
+foreground_color = "query"
+background_color = "query"
+
+# Keybindings config
+# The format is same as helixes https://docs.helix-editor.com/remapping.html except meta key doesn't work
+# The configured keybindings are merged with the original, to unbind a key, set it to none  
+[keybindings]
+left = "switch_to_comic previous"
+right = "switch_to_comic next"
+home = "switch_to_comic first"
+end = "switch_to_comic latest"
+esc = "quit"
+e = "open_in_browser explanation"
+o = "open_in_browser comic"
+q = "quit"
+p = "switch_to_comic previous"
+n = "switch_to_comic next"
+f = "switch_to_comic first"
+l = "switch_to_comic latest"
+t = "toggle_processing"
+b = "bookmark_comic"
+r = "switch_to_comic random"
+d = "switch_to_comic last_seen"

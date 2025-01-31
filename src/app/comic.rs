@@ -1,4 +1,5 @@
 use crate::app::SwitchToComic::{self, *};
+use derive_getters::Getters;
 use dirs::state_dir;
 use eyre::{eyre, Result};
 use image::DynamicImage;
@@ -8,6 +9,33 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::{fs, path::PathBuf};
 
+#[derive(Clone, Getters)]
+pub struct Comic {
+    name: String,
+    number: u64,
+    alt_text: String,
+    date_uploaded: String,
+}
+
+impl Comic {
+    pub fn new(number: u64, json: Value) -> Option<Self> {
+        let alt_text = json["alt"].as_str()?.to_string();
+        let name = json["title"].as_str()?.to_owned();
+        let date_uploaded = format!(
+            "{}-{:02}-{:02}",
+            json["year"].as_str()?,
+            json["month"].as_str()?.parse::<u16>().ok()?,
+            json["day"].as_str()?.parse::<u16>().ok()?,
+        );
+        Some(Self {
+            name,
+            number,
+            alt_text,
+            date_uploaded,
+        })
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 pub struct ComicDownloader {
     last_seen_comic: u64,
@@ -16,34 +44,20 @@ pub struct ComicDownloader {
     rng: ThreadRng,
 }
 
-#[derive(Clone)]
-pub struct Comic {
-    pub name: String,
-    pub number: u64,
-    pub alt_text: String,
-    pub date_uploaded: String,
-}
-
 impl ComicDownloader {
     pub fn new() -> Result<Self> {
-        let json = match fs::read_to_string(get_path_to_state_file()) {
-            Ok(file) => file,
-            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(Self {
-                    last_seen_comic: get_latest_comic_number()?,
-                    bookmarked_comic: None,
-                    rng: thread_rng(),
-                })
-            }
-            Err(error) => {
-                return Err(eyre!(
-                    "Failed to read {}: {error}",
-                    get_path_to_state_file().display(),
-                ))
-            }
-        };
-
-        Ok(serde_json::from_str(&json)?)
+        match fs::read_to_string(get_path_to_state_file()) {
+            Ok(json) => Ok(serde_json::from_str(&json)?),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(Self {
+                last_seen_comic: get_latest_comic_number()?,
+                bookmarked_comic: None,
+                rng: thread_rng(),
+            }),
+            Err(error) => Err(eyre!(
+                "Failed to read {}: {error}",
+                get_path_to_state_file().display(),
+            )),
+        }
     }
 
     pub fn switch(&mut self, switch_to_comic: SwitchToComic) -> Result<(Comic, DynamicImage)> {
@@ -54,24 +68,13 @@ impl ComicDownloader {
 
     fn download(&self) -> Result<(Comic, DynamicImage)> {
         let json = download_json(Some(self.last_seen_comic))?;
-        let alt_text = json["alt"].as_str().unwrap().to_string();
-        let name = json["title"].as_str().unwrap().to_owned();
-        let date_uploaded = format!(
-            "{}-{:02}-{:02}",
-            json["year"].as_str().unwrap(),
-            json["month"].as_str().unwrap().parse::<u16>().unwrap(),
-            json["day"].as_str().unwrap().parse::<u16>().unwrap(),
-        );
-        let image_url = json["img"].as_str().unwrap();
+        let image_url = json["img"]
+            .as_str()
+            .expect("XKCD should always return valid json");
         let image_bytes = &isahc::get(image_url)?.bytes()?;
-        let image = image::load_from_memory(image_bytes).unwrap();
+        let image = image::load_from_memory(image_bytes)?;
         Ok((
-            Comic {
-                name,
-                number: self.last_seen_comic,
-                alt_text,
-                date_uploaded,
-            },
+            Comic::new(self.last_seen_comic, json).expect("XKCD should always return valid json"),
             image,
         ))
     }
