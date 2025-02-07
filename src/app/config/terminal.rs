@@ -1,4 +1,4 @@
-use eyre::{OptionExt, Result};
+use color_eyre::eyre::{OptionExt, Result};
 use image::Rgb;
 use serde::Deserialize;
 

@@ -1,4 +1,5 @@
 mod style;
+use clap::ValueEnum;
 use keybindings::parse_keybindings;
 pub use style::StylingConfig;
 use style::StylingConfigRaw;
@@ -8,11 +9,9 @@ pub use terminal::TerminalConfig;
 use terminal::TerminalConfigRaw;
 
 mod keybindings;
-
-use super::event::Keybindings;
+use super::{event::Keybindings, SwitchToComic};
 use bitflags::Flags;
-use crossterm::event::KeyCode::{self, *};
-use eyre::Result;
+use color_eyre::{eyre::eyre, Result};
 use figment::{
     providers::{Data, Toml},
     Figment,
@@ -27,7 +26,7 @@ pub fn print_default_config() {
 
 pub struct Config {
     pub keep_colors: bool,
-
+    pub initial_comic: SwitchToComic,
     pub url: String,
     pub explanation_url: String,
 
@@ -45,6 +44,8 @@ impl Config {
         Ok(Self {
             keep_colors: raw.keep_colors,
             url: raw.url,
+            initial_comic: SwitchToComic::from_str(&raw.initial_comic, false)
+                .map_err(|e| eyre!("Failed to parse initial_comic config option: {e}"))?,
             explanation_url: raw.explanation_url,
             keybindings: parse_keybindings(raw.keybindings)?,
             styling: StylingConfig::from_raw(raw.styling)?,
@@ -56,7 +57,7 @@ impl Config {
 #[derive(Deserialize)]
 struct ConfigRaw {
     keep_colors: bool,
-
+    initial_comic: String,
     url: String,
     explanation_url: String,
 

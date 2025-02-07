@@ -21,14 +21,15 @@ pub fn cli() -> ArgMatches {
             Arg::new("initial_comic")
                 .value_parser(value_parser!(SwitchToComic))
                 .short('i')
-                .default_value(SwitchToComic::Latest),
+                .help("The default value for this argument is the initial_comic config option"),
             Arg::new("config_path")
                 .value_parser(value_parser!(PathBuf))
                 .short('c')
                 .default_value(default_config_path()),
             Arg::new("print_default_config")
                 .action(ArgAction::SetTrue)
-                .short('d')
+                .short('p')
+                .help("Print default config")
                 .exclusive(true),
         ])
         .styles(STYLE)

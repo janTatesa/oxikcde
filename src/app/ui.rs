@@ -3,7 +3,7 @@ pub mod terminal;
 
 use super::{comic::Comic, config::StylingConfig, config::TerminalConfig, OpenInBrowser};
 use ::image::DynamicImage;
-use eyre::Result;
+use color_eyre::Result;
 use image::*;
 use ratatui::{
     layout::{Constraint, Direction, Layout},
@@ -94,22 +94,17 @@ impl Ui {
             .title_top(
                 comic
                     .date_uploaded()
-                    .as_str()
                     .set_style(self.styling_config.date_style),
             )
             .title_top(
-                Line::styled(
-                    format!("{}: {}", comic.number(), comic.name()),
-                    self.styling_config.title_style,
-                )
-                .centered(),
+                Line::styled(format!("{comic}"), self.styling_config.title_style).centered(),
             );
 
         if let Some(message) = message {
             title_block = title_block.title_top(message.into_right_aligned_line())
         }
 
-        let alt_text = Paragraph::new(comic.alt_text().as_str())
+        let alt_text = Paragraph::new(comic.alt_text())
             .centered()
             .wrap(Wrap::default())
             .set_style(self.styling_config.alt_text_style);

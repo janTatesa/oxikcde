@@ -1,4 +1,4 @@
-use eyre::Result;
+use color_eyre::Result;
 use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel, Rgb};
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol, Resize, StatefulImage};
 use std::array;

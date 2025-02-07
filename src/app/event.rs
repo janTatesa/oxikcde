@@ -1,7 +1,7 @@
 use crate::app::CommandToApp;
 use cli_log::debug;
+use color_eyre::Result;
 use crossterm::event::{self, Event, KeyEvent, KeyEventKind};
-use eyre::Result;
 use std::collections::HashMap;
 
 pub type Keybindings = HashMap<KeyEvent, CommandToApp>;

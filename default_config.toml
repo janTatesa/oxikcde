@@ -1,6 +1,7 @@
 # Defaults to false as colors are buggy with processing
 # When set to false will treat the colors as if they were grayscale
 keep_colors = false
+initial_comic = "latest"
 # When opening the comic/explanation in browser, to this url will be the comic number appended
 url = "https://m.xkcd.com/"
 explanation_url = "https://explainxkcd.com/"

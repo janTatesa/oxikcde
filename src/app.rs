@@ -4,13 +4,13 @@ pub use config::print_default_config;
 mod event;
 mod ui;
 
-use clap::{builder::OsStr, ArgMatches, ValueEnum};
+use clap::{ArgMatches, ValueEnum};
 use cli_log::info;
+use color_eyre::{eyre::Context, Result};
 use colors_transform::Color;
 use comic::*;
 use config::Config;
 use event::EventHandler;
-use eyre::Result;
 use image::Rgb;
 use std::path::PathBuf;
 use strum::{Display, EnumString};
@@ -30,10 +30,13 @@ impl App {
         let config = Config::new(
             cli.get_one::<PathBuf>("config_path")
                 .expect("Option has default value"),
-        )?;
-        let mut comic_downloader = ComicDownloader::new()?;
-        let (comic, image) = comic_downloader.switch(initial_switch_to_comic(&cli))?;
-        let mut ui = Ui::new(image, config.styling, config.terminal, config.keep_colors)?;
+        )
+        .wrap_err("Failed to parse config")?;
+        let mut comic_downloader = ComicDownloader::new();
+        let (comic, image) =
+            comic_downloader.switch(initial_switch_to_comic(&config.initial_comic, &cli))?;
+        let mut ui = Ui::new(image, config.styling, config.terminal, config.keep_colors)
+            .wrap_err("Failed to initialise ui")?;
         ui.update(&comic, RenderOption::None)?;
         Self {
             comic_downloader,
@@ -104,13 +107,10 @@ impl App {
     }
 }
 
-fn initial_switch_to_comic(cli: &ArgMatches) -> SwitchToComic {
+fn initial_switch_to_comic(default: &SwitchToComic, cli: &ArgMatches) -> SwitchToComic {
     cli.get_one::<u64>("number")
         .map(|num| SwitchToComic::Specific(num.to_owned()))
-        .unwrap_or_else(|| {
-            *cli.get_one("initial_comic")
-                .expect("Option has default value")
-        })
+        .unwrap_or_else(|| *cli.get_one("initial_comic").unwrap_or(default))
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, EnumString)]
@@ -148,13 +148,6 @@ pub enum SwitchToComic {
     #[clap(skip)]
     Specific(u64),
     LastSeen,
-}
-
-impl From<SwitchToComic> for OsStr {
-    // Required for having a default argument
-    fn from(value: SwitchToComic) -> Self {
-        value.to_string().into()
-    }
 }
 
 impl From<CommandToApp> for RenderOption {

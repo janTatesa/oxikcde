@@ -2,12 +2,12 @@ use crate::{
     app::{event::Keybindings, CommandToApp, OpenInBrowser},
     SwitchToComic,
 };
+use color_eyre::eyre::OptionExt;
 use color_eyre::Result;
 use crossterm::event::{
     KeyCode::{self, *},
     KeyEvent, KeyModifiers,
 };
-use eyre::OptionExt;
 use std::{collections::HashMap, str::FromStr};
 
 use super::{parse_modifiers, Modifiers};

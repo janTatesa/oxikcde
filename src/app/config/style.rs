@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
+use color_eyre::eyre::OptionExt;
 use color_eyre::Result;
-use eyre::OptionExt;
 use ratatui::style::{Color, Modifier as StyleModifier, Style};
 use serde::Deserialize;
 

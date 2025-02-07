@@ -4,7 +4,7 @@ mod cli;
 use app::*;
 use cli::cli;
 use cli_log::init_cli_log;
-use eyre::Result;
+use color_eyre::eyre::Result;
 
 fn main() -> Result<()> {
     color_eyre::install()?;
