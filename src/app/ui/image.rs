@@ -3,10 +3,7 @@ use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel, Rgb};
 use ratatui_image::{picker::Picker, protocol::StatefulProtocol, Resize, StatefulImage};
 use std::array;
 
-const RESIZE: Resize = Resize::Scale(None);
-pub fn image_widget() -> StatefulImage {
-    StatefulImage::default().resize(RESIZE)
-}
+pub const IMAGE_WIDGET: StatefulImage = StatefulImage::new().resize(Resize::Scale(None));
 
 type Color = [u8; 3];
 const WHITE: Color = [255, 255, 255];

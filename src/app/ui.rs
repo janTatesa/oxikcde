@@ -6,13 +6,13 @@ use ::image::DynamicImage;
 use color_eyre::Result;
 use image::*;
 use ratatui::{
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Direction, Flex, Layout, Rect},
     style::Styled,
     text::Line,
     widgets::{Block, Paragraph, Wrap},
     DefaultTerminal, Frame,
 };
-use ratatui_image::protocol::StatefulProtocol;
+use ratatui_image::{protocol::StatefulProtocol, Resize};
 use terminal::*;
 
 pub struct Ui {
@@ -127,13 +127,25 @@ fn render(
     image: &mut StatefulProtocol,
     frame: &mut Frame,
 ) {
-    //TODO: Center the image
     let alt_text_height = alt_text.line_count(frame.area().width) as u16;
     let layout = layout(alt_text_height).split(frame.area());
-
+    let image_area = image.size_for(&Resize::Scale(None), layout[1]);
+    let centered_image_area = center_area(
+        layout[1],
+        Constraint::Length(image_area.width),
+        Constraint::Length(image_area.height),
+    );
     frame.render_widget(title_block, layout[0]);
     frame.render_widget(alt_text, layout[2]);
-    frame.render_stateful_widget(image_widget(), layout[1], image);
+    frame.render_stateful_widget(IMAGE_WIDGET, centered_image_area, image);
+}
+
+fn center_area(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
+    let [area] = Layout::horizontal([horizontal])
+        .flex(Flex::Center)
+        .areas(area);
+    let [area] = Layout::vertical([vertical]).flex(Flex::Center).areas(area);
+    area
 }
 
 fn layout(alt_text_height: u16) -> Layout {
