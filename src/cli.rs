@@ -3,7 +3,9 @@ use clap::{
     builder::{styling::AnsiColor::*, Styles},
     command, value_parser, Arg, ArgAction, ArgMatches,
 };
+use color_eyre::{eyre::ContextCompat, Result};
 use std::{ffi::OsString, path::PathBuf};
+use tap::Tap;
 
 const STYLE: Styles = Styles::styled()
     .header(Green.on_default().bold())
@@ -11,11 +13,11 @@ const STYLE: Styles = Styles::styled()
     .literal(Blue.on_default().bold())
     .placeholder(Cyan.on_default());
 
-pub fn cli() -> ArgMatches {
-    command!()
+pub fn cli() -> Result<ArgMatches> {
+    Ok(command!()
         .args([
             Arg::new("number")
-                .value_parser(value_parser!(u64))
+                .value_parser(value_parser!(u16))
                 .required(false)
                 .conflicts_with("initial_comic"),
             Arg::new("initial_comic")
@@ -25,7 +27,7 @@ pub fn cli() -> ArgMatches {
             Arg::new("config_path")
                 .value_parser(value_parser!(PathBuf))
                 .short('c')
-                .default_value(default_config_path()),
+                .default_value(default_config_path()?),
             Arg::new("print_default_config")
                 .action(ArgAction::SetTrue)
                 .short('p')
@@ -33,11 +35,12 @@ pub fn cli() -> ArgMatches {
                 .exclusive(true),
         ])
         .styles(STYLE)
-        .get_matches()
+        .get_matches())
 }
 
-fn default_config_path() -> OsString {
-    let mut path = dirs::config_dir().unwrap_or_default();
-    path.push("oxikcde.toml");
-    path.into()
+fn default_config_path() -> Result<OsString> {
+    Ok(dirs::config_dir()
+        .wrap_err("Unsupported platform")?
+        .tap_mut(|p| p.extend(["oxikcde", "oxikcde.toml"]))
+        .into())
 }

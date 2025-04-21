@@ -9,7 +9,7 @@ use color_eyre::eyre::Result;
 fn main() -> Result<()> {
     color_eyre::install()?;
     init_cli_log!();
-    let cli = cli();
+    let cli = cli()?;
     if *cli
         .get_one("print_default_config")
         .expect("Option has default value")

@@ -51,5 +51,26 @@
         ];
       };
     });
+    packages = forEachSupportedSystem ({pkgs}: {
+      default = pkgs.rustPlatform.buildRustPackage {
+        name = "oxikcde";
+
+        src = pkgs.lib.cleanSource ./.;
+
+        cargoLock = {
+          lockFile = ./Cargo.lock;
+          # Allow dependencies to be fetched from git and avoid having to set the outputHashes manually
+          allowBuiltinFetchGit = true;
+        };
+        nativeBuildInputs = [pkgs.pkg-config];
+        buildInputs = [pkgs.openssl];
+        meta = with pkgs.lib; {
+          description = "XKCD oxidised";
+          homepage = "https://github.com/TadoTheMiner/oxikcde";
+          license = licenses.mit;
+          mainProgram = "oxikcde";
+        };
+      };
+    });
   };
 }

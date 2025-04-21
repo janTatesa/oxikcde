@@ -1,14 +1,14 @@
 mod image;
 pub mod terminal;
 
-use super::{comic::Comic, config::StylingConfig, config::TerminalConfig, OpenInBrowser};
+use super::{comic::Comic, config::StylingConfig, config::TerminalConfig};
 use ::image::DynamicImage;
 use color_eyre::Result;
 use image::*;
 use ratatui::{
     layout::{Constraint, Direction, Flex, Layout, Rect},
     style::Styled,
-    text::Line,
+    text::{Line, Span},
     widgets::{Block, Paragraph, Wrap},
     DefaultTerminal, Frame,
 };
@@ -19,15 +19,13 @@ pub struct Ui {
     terminal: DefaultTerminal,
     image_protocols: ImageProtocols,
     image_processor: ImageProcessor,
-    process_image: bool,
     styling_config: StylingConfig,
+    message: Option<Span<'static>>,
 }
 
 pub enum RenderOption {
-    ToggleProcessing,
-    ShowBookmarkComicMessage,
     ShowError(String),
-    ShowOpenInBrowserMessage(OpenInBrowser),
+    ShowMessage(&'static str),
     NewComic(DynamicImage),
     None,
 }
@@ -54,32 +52,24 @@ impl Ui {
         let image_protocols = image_processor.image_protocols(original_image);
         Ok(Self {
             terminal,
-            process_image: true,
             styling_config,
             image_protocols,
             image_processor,
+            message: None,
         })
     }
 
-    pub fn update(&mut self, comic: &Comic, option: RenderOption) -> Result<()> {
-        let message = match option {
-            RenderOption::ToggleProcessing => {
-                self.process_image = !self.process_image;
-                Some(
-                    format!(
-                        "Image processing is now {}!",
-                        if self.process_image { "on" } else { "off" }
-                    )
-                    .set_style(self.styling_config.messages_style),
-                )
+    pub fn update(
+        &mut self,
+        comic: &Comic,
+        process_image: bool,
+        option: RenderOption,
+    ) -> Result<()> {
+        let current_message = self.message.take();
+        self.message = match option {
+            RenderOption::ShowMessage(message) => {
+                Some(message.set_style(self.styling_config.messages_style))
             }
-            RenderOption::ShowBookmarkComicMessage => {
-                Some("Bookmarked comic!".set_style(self.styling_config.messages_style))
-            }
-            RenderOption::ShowOpenInBrowserMessage(open_in_browser) => Some(
-                format!("Opened {open_in_browser} in your web browser!",)
-                    .set_style(self.styling_config.messages_style),
-            ),
             RenderOption::ShowError(error) => {
                 Some(error.set_style(self.styling_config.errors_style))
             }
@@ -87,10 +77,10 @@ impl Ui {
                 self.image_protocols = self.image_processor.image_protocols(image);
                 None
             }
-            _ => None,
+            RenderOption::None => current_message,
         };
 
-        let mut title_block = Block::new()
+        let title_block = Block::new()
             .title_top(
                 comic
                     .date_uploaded()
@@ -100,9 +90,11 @@ impl Ui {
                 Line::styled(format!("{comic}"), self.styling_config.title_style).centered(),
             );
 
-        if let Some(message) = message {
-            title_block = title_block.title_top(message.into_right_aligned_line())
-        }
+        let title_block = if let Some(message) = self.message.clone() {
+            title_block.title_top(message.into_right_aligned_line())
+        } else {
+            title_block
+        };
 
         let alt_text = Paragraph::new(comic.alt_text())
             .centered()
@@ -113,7 +105,7 @@ impl Ui {
             render(
                 title_block,
                 alt_text,
-                self.image_protocols.get(self.process_image),
+                self.image_protocols.get(process_image),
                 frame,
             )
         })?;
