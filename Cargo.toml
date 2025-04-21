@@ -11,7 +11,7 @@ clap = { version = "4.5.20", features = ["cargo", "derive", "string"] }
 cli-log = "2.1.0"
 color-eyre = "0.6.3"
 colors-transform = "0.2.11"
-crossterm = "0.28.1"
+crossterm = "0.29.0"
 dirs = "5.0.1"
 figment = { version = "0.10.19", features = ["toml"] }
 image = "0.25.4"
