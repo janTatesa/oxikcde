@@ -6,13 +6,13 @@ use ::image::DynamicImage;
 use color_eyre::Result;
 use image::*;
 use ratatui::{
+    DefaultTerminal, Frame,
     layout::{Constraint, Direction, Flex, Layout, Rect},
     style::Styled,
     text::{Line, Span},
     widgets::{Block, Paragraph, Wrap},
-    DefaultTerminal, Frame,
 };
-use ratatui_image::{protocol::StatefulProtocol, Resize};
+use ratatui_image::{Resize, protocol::StatefulProtocol};
 use terminal::*;
 
 pub struct Ui {

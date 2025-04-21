@@ -1,6 +1,6 @@
 use color_eyre::Result;
 use image::{DynamicImage, GenericImageView, ImageBuffer, Pixel, Rgb};
-use ratatui_image::{picker::Picker, protocol::StatefulProtocol, Resize, StatefulImage};
+use ratatui_image::{Resize, StatefulImage, picker::Picker, protocol::StatefulProtocol};
 use std::array;
 
 pub const IMAGE_WIDGET: StatefulImage = StatefulImage::new().resize(Resize::Scale(None));

@@ -1,8 +1,8 @@
 use crate::app::SwitchToComic::{self, *};
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{Result, eyre::Context};
 use image::DynamicImage;
 use isahc::ReadResponseExt;
-use rand::{rngs::ThreadRng, Rng};
+use rand::{Rng, rngs::ThreadRng};
 use serde_json::Value;
 use std::{fmt::Display, ops::Sub};
 

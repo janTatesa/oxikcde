@@ -1,16 +1,16 @@
 use crate::{
-    app::{event::Keybindings, CommandToApp, OpenInBrowser},
     SwitchToComic,
+    app::{CommandToApp, OpenInBrowser, event::Keybindings},
 };
-use color_eyre::eyre::OptionExt;
 use color_eyre::Result;
+use color_eyre::eyre::OptionExt;
 use crossterm::event::{
     KeyCode::{self, *},
     KeyEvent, KeyModifiers,
 };
 use std::{collections::HashMap, str::FromStr};
 
-use super::{parse_modifiers, Modifiers};
+use super::{Modifiers, parse_modifiers};
 
 type Type = HashMap<String, String>;
 

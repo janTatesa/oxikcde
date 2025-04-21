@@ -1,5 +1,5 @@
 use cli_log::error;
-use color_eyre::{eyre::ContextCompat, Result};
+use color_eyre::{Result, eyre::ContextCompat};
 use dirs::{data_dir, state_dir};
 use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};

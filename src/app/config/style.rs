@@ -1,11 +1,11 @@
 use std::str::FromStr;
 
-use color_eyre::eyre::OptionExt;
 use color_eyre::Result;
+use color_eyre::eyre::OptionExt;
 use ratatui::style::{Color, Modifier as StyleModifier, Style};
 use serde::Deserialize;
 
-use super::{parse_modifiers, Modifiers};
+use super::{Modifiers, parse_modifiers};
 pub struct StylingConfig {
     pub title_style: Style,
     pub alt_text_style: Style,

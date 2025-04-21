@@ -9,12 +9,12 @@ pub use terminal::TerminalConfig;
 use terminal::TerminalConfigRaw;
 
 mod keybindings;
-use super::{event::Keybindings, SwitchToComic};
+use super::{SwitchToComic, event::Keybindings};
 use bitflags::Flags;
-use color_eyre::{eyre::eyre, Result};
+use color_eyre::{Result, eyre::eyre};
 use figment::{
-    providers::{Data, Toml},
     Figment,
+    providers::{Data, Toml},
 };
 use serde::Deserialize;
 use std::{collections::HashMap, path::PathBuf};

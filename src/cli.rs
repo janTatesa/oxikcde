@@ -1,9 +1,10 @@
 use crate::SwitchToComic;
 use clap::{
-    builder::{styling::AnsiColor::*, Styles},
-    command, value_parser, Arg, ArgAction, ArgMatches,
+    Arg, ArgAction, ArgMatches,
+    builder::{Styles, styling::AnsiColor::*},
+    command, value_parser,
 };
-use color_eyre::{eyre::ContextCompat, Result};
+use color_eyre::{Result, eyre::ContextCompat};
 use std::{ffi::OsString, path::PathBuf};
 use tap::Tap;
 

@@ -7,7 +7,7 @@ mod ui;
 
 use clap::{ArgMatches, ValueEnum};
 use cli_log::info;
-use color_eyre::{eyre::Context, Result};
+use color_eyre::{Result, eyre::Context};
 use colors_transform::Color;
 use comic::*;
 use config::Config;
