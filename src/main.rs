@@ -6,7 +6,8 @@ use cli::cli;
 use cli_log::init_cli_log;
 use color_eyre::eyre::Result;
 
-fn main() -> Result<()> {
+#[tokio::main]
+async fn main() -> Result<()> {
     color_eyre::install()?;
     init_cli_log!();
     let cli = cli()?;
@@ -14,11 +15,11 @@ fn main() -> Result<()> {
         .get_one("print_default_config")
         .expect("Option has default value")
     {
-        app::print_default_config();
+        app::config::print_default_config();
         return Ok(());
     }
 
-    let result = App::run(cli);
+    let result = App::run(cli).await;
     ratatui::restore();
     result
 }

@@ -5,18 +5,16 @@ use serde::{Deserialize, Serialize};
 use std::{fs, path::PathBuf};
 use tap::Tap;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct State {
-    pub last_seen_comic: u16,
-    pub minimum_latest_comic_number: u16,
+    pub current_comic: u16,
     bookmarked_comic: Option<u16>,
 }
 
 impl Default for State {
     fn default() -> Self {
         Self {
-            last_seen_comic: 1,
-            minimum_latest_comic_number: 1,
+            current_comic: 1,
             bookmarked_comic: None,
         }
     }
@@ -50,10 +48,10 @@ impl State {
 
     // TODO: return an enum
     pub fn toggle_bookmark(&mut self) -> bool {
-        self.bookmarked_comic = if self.bookmarked_comic == Some(self.last_seen_comic) {
+        self.bookmarked_comic = if self.bookmarked_comic == Some(self.current_comic) {
             None
         } else {
-            Some(self.last_seen_comic)
+            Some(self.current_comic)
         };
         self.bookmarked_comic.is_some()
     }

@@ -1,9 +1,9 @@
 use crate::{
     SwitchToComic,
-    app::{CommandToApp, OpenInBrowser, event::Keybindings},
+    app::{CommandToApp, Keybindings, OpenInBrowser},
 };
-use color_eyre::Result;
-use color_eyre::eyre::OptionExt;
+use color_eyre::eyre::{Context, ContextCompat, OptionExt};
+use color_eyre::{Result, eyre::eyre};
 use crossterm::event::{
     KeyCode::{self, *},
     KeyEvent, KeyModifiers,
@@ -18,7 +18,8 @@ pub fn parse_keybindings(raw: Type) -> Result<Keybindings> {
     let mut keybindings: Keybindings = HashMap::with_capacity(raw.len());
     for (event, command) in raw.iter() {
         keybindings.insert(
-            parse_key_event(event).ok_or_eyre(format!("Failed to parse keybinding {}", event))?,
+            parse_key_event(event)
+                .wrap_err_with(|| format!("Failed to parse keybinding {}", event))?,
             CommandToApp::parse(command)
                 .ok_or_eyre(format!("Failed to parse action {}", command))?,
         );
@@ -27,16 +28,16 @@ pub fn parse_keybindings(raw: Type) -> Result<Keybindings> {
 }
 
 const MINUS: KeyEvent = KeyEvent::new(KeyCode::Char('-'), KeyModifiers::empty());
-pub fn parse_key_event(string: &str) -> Option<KeyEvent> {
+pub fn parse_key_event(string: &str) -> Result<KeyEvent> {
     if string == "-" {
-        return Some(MINUS);
+        return Ok(MINUS);
     }
 
     let mut split: Vec<&str> = string.split("-").collect();
-    let keycode = parse_key_code(split.pop()?)?;
-    let modifiers = KeyModifiers::from_bits(parse_modifiers(split, KEY_MODIFIERS).bits())
+    let keycode = parse_key_code(split.pop().wrap_err("Expected key")?)?;
+    let modifiers = KeyModifiers::from_bits(parse_modifiers(split, KEY_MODIFIERS)?.bits())
         .expect("KeyModifiers should always be parsed correctly");
-    Some(KeyEvent::new(keycode, modifiers))
+    Ok(KeyEvent::new(keycode, modifiers))
 }
 
 const KEY_MODIFIERS: Modifiers<KeyModifiers, 3> = [
@@ -57,26 +58,26 @@ impl CommandToApp {
     }
 }
 
-fn parse_key_code(string: &str) -> Option<KeyCode> {
+fn parse_key_code(string: &str) -> Result<KeyCode> {
     match string {
-        "minus" => Some(Char('-')),
-        "backspace" => Some(Backspace),
-        "space" => Some(Char(' ')),
-        "ret" => Some(Enter),
-        "left" => Some(Left),
-        "right" => Some(Right),
-        "up" => Some(Up),
-        "down" => Some(Down),
-        "home" => Some(Home),
-        "end" => Some(End),
-        "pageup" => Some(PageUp),
-        "pagedown" => Some(PageDown),
-        "tab" => Some(Tab),
-        "del" => Some(Delete),
-        "ins" => Some(Insert),
-        "null" => Some(Null),
-        "esc" => Some(Esc),
-        character if character.len() == 1 => Some(KeyCode::Char(character.chars().next()?)),
-        _ => None,
+        "minus" => Ok(Char('-')),
+        "backspace" => Ok(Backspace),
+        "space" => Ok(Char(' ')),
+        "ret" => Ok(Enter),
+        "left" => Ok(Left),
+        "right" => Ok(Right),
+        "up" => Ok(Up),
+        "down" => Ok(Down),
+        "home" => Ok(Home),
+        "end" => Ok(End),
+        "pageup" => Ok(PageUp),
+        "pagedown" => Ok(PageDown),
+        "tab" => Ok(Tab),
+        "del" => Ok(Delete),
+        "ins" => Ok(Insert),
+        "null" => Ok(Null),
+        "esc" => Ok(Esc),
+        character if character.len() == 1 => Ok(KeyCode::Char(character.chars().next().unwrap())),
+        invalid => Err(eyre!("Invalid key {invalid}")),
     }
 }

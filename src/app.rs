@@ -1,7 +1,6 @@
 mod comic;
-mod config;
-pub use config::print_default_config;
-mod event;
+pub mod config;
+
 mod state;
 mod ui;
 
@@ -11,28 +10,42 @@ use color_eyre::{Result, eyre::Context};
 use colors_transform::Color;
 use comic::*;
 use config::Config;
-use core::panic;
-use event::EventHandler;
+use crossterm::event::{Event, EventStream, KeyEvent};
+use futures::future::Fuse;
+use futures::{FutureExt, StreamExt};
 use image::{DynamicImage, Rgb};
 use rand::{rngs::ThreadRng, thread_rng};
 use state::State;
 use std::path::PathBuf;
+use std::time::Duration;
+use std::{collections::HashMap, panic};
 use strum::{Display, EnumString};
+use tokio::time::{Interval, interval};
+use tokio::{select, time};
 use ui::*;
 
+type Keybindings = HashMap<KeyEvent, CommandToApp>;
+
+type JoinHandle<T> = Fuse<tokio::task::JoinHandle<Result<T>>>;
 pub struct App {
+    running: bool,
     state: State,
     rng: ThreadRng,
     process_image: bool,
-    event_handler: EventHandler,
+    event_stream: EventStream,
+    keybindings: Keybindings,
     xkcd_url: String,
     explanation_url: String,
     ui: Ui,
     comic: Comic,
+    image_join_handle: JoinHandle<DynamicImage>,
+    delete_message_interval: Interval,
 }
 
+const MESSAGE_DURATION: Duration = Duration::from_secs(2);
+const WAIT_DURATION: Duration = Duration::from_millis(100);
 impl App {
-    pub fn run(cli: ArgMatches) -> Result<()> {
+    pub async fn run(cli: ArgMatches) -> Result<()> {
         let config = Config::new(
             cli.get_one::<PathBuf>("config_path")
                 .expect("Option has default value"),
@@ -40,52 +53,93 @@ impl App {
         .wrap_err("Failed to parse config")?;
         let mut rng = thread_rng();
         let mut state = State::new();
-        state.last_seen_comic = get_comic_number(
+        state.current_comic = get_comic_number(
             &mut rng,
-            &mut state,
+            &state,
             initial_switch_to_comic(config.initial_comic, &cli),
-        )?;
-        let (comic, image) = download(&state)?;
-        let mut ui = Ui::new(image, config.styling, config.terminal, config.keep_colors)
-            .wrap_err("Failed to initialise ui")?;
-        ui.update(&comic, true, RenderOption::None)?;
+        )
+        .await?;
+        let comic = download(state.current_comic).await?;
+        let ui = Ui::new(config.styling, config.terminal, config.keep_colors)
+            .wrap_err("Failed to initialise ui")
+            .and_then(|mut ui| {
+                ui.update(&comic, true, RenderOption::None)?;
+                Ok(ui)
+            })?;
         Self {
             state,
             rng,
             process_image: true,
             ui,
+            image_join_handle: tokio::spawn(download_image(comic.image_url().to_string())).fuse(),
             comic,
-            event_handler: EventHandler::new(config.keybindings),
+            event_stream: EventStream::new(),
+            keybindings: config.keybindings,
             xkcd_url: config.url,
             explanation_url: config.explanation_url,
+            running: true,
+            delete_message_interval: interval(MESSAGE_DURATION),
         }
         .main_loop()
+        .await
     }
 
-    fn main_loop(mut self) -> Result<()> {
-        loop {
-            let command = self.event_handler.get_command()?;
-            info!("Performing {:?}", command);
-            if let CommandToApp::Quit = command {
-                return self.state.save();
+    async fn main_loop(mut self) -> Result<()> {
+        while self.running {
+            select! {
+                    Some(result) = self.event_stream.next().fuse() => {self.handle_crossterm_event(result?).await?}
+                    image_download_result = &mut self.image_join_handle => {self.on_new_image(image_download_result.unwrap())?},
+                    _ = self.delete_message_interval.tick() => self.ui.update(&self.comic, self.process_image, RenderOption::DeleteMessage)?,
+                    _ = time::sleep(WAIT_DURATION) => {
+                        // Sleep for a short duration to avoid busy waiting.
+                    }
             }
-            self.handle_command(command)?
         }
+        info!("Quiting");
+        self.state.save()?;
+        Ok(())
     }
 
-    fn switch_to_comic(&mut self, switch_to_comic: SwitchToComic) -> Result<(Comic, DynamicImage)> {
-        self.state.last_seen_comic =
-            get_comic_number(&mut self.rng, &mut self.state, switch_to_comic)?;
-        download(&self.state)
+    async fn switch_to_comic(&mut self, switch_to_comic: SwitchToComic) -> Result<()> {
+        let number = get_comic_number(&mut self.rng, &self.state, switch_to_comic).await?;
+        if number != self.state.current_comic {
+            self.state.current_comic = number;
+            let comic = download(number).await?;
+            self.image_join_handle =
+                tokio::spawn(download_image(comic.image_url().to_string())).fuse();
+            self.comic = comic;
+            self.ui.clear_image_protocols();
+        };
+        Ok(())
     }
-    fn handle_command(&mut self, command: CommandToApp) -> Result<()> {
+
+    fn on_new_image(&mut self, comic_download_result: Result<DynamicImage>) -> Result<()> {
+        let render_option = match comic_download_result {
+            Ok(image) => RenderOption::NewImage(image),
+            Err(error) => RenderOption::ShowError(error.to_string()),
+        };
+
+        self.update_ui(render_option)
+    }
+
+    async fn handle_crossterm_event(&mut self, event: Event) -> Result<()> {
+        let command = match event {
+            Event::Key(key_event) => match self.keybindings.get(&key_event) {
+                Some(command) => *command,
+                None => return Ok(()),
+            },
+            Event::Resize(_, _) => CommandToApp::HandleResize,
+            _ => return Ok(()),
+        };
+
+        self.handle_command(command).await
+    }
+
+    async fn handle_command(&mut self, command: CommandToApp) -> Result<()> {
         let render_option = match command {
             CommandToApp::SwitchToComic(switch_to_comic) => {
-                match self.switch_to_comic(switch_to_comic) {
-                    Ok((comic, image)) => {
-                        self.comic = comic;
-                        RenderOption::NewComic(image)
-                    }
+                match self.switch_to_comic(switch_to_comic).await {
+                    Ok(_) => RenderOption::None,
                     Err(error) => RenderOption::ShowError(error.to_string()),
                 }
             }
@@ -105,7 +159,10 @@ impl App {
             }
             CommandToApp::None => return Ok(()),
             CommandToApp::HandleResize => RenderOption::None,
-            CommandToApp::Quit => panic!(),
+            CommandToApp::Quit => {
+                self.running = false;
+                return Ok(());
+            }
             CommandToApp::ToggleProcessing => {
                 self.process_image = !self.process_image;
                 RenderOption::ShowMessage(if self.process_image {
@@ -115,7 +172,13 @@ impl App {
                 })
             }
         };
+        self.update_ui(render_option)
+    }
 
+    fn update_ui(&mut self, render_option: RenderOption) -> Result<()> {
+        if let RenderOption::ShowError(_) | RenderOption::ShowMessage(_) = render_option {
+            self.delete_message_interval.reset();
+        }
         self.ui
             .update(&self.comic, self.process_image, render_option)
     }

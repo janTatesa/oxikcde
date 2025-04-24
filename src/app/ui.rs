@@ -17,7 +17,7 @@ use terminal::*;
 
 pub struct Ui {
     terminal: DefaultTerminal,
-    image_protocols: ImageProtocols,
+    image_protocols: Option<ImageProtocols>,
     image_processor: ImageProcessor,
     styling_config: StylingConfig,
     message: Option<Span<'static>>,
@@ -26,13 +26,13 @@ pub struct Ui {
 pub enum RenderOption {
     ShowError(String),
     ShowMessage(&'static str),
-    NewComic(DynamicImage),
+    NewImage(DynamicImage),
+    DeleteMessage,
     None,
 }
 
 impl Ui {
     pub fn new(
-        original_image: DynamicImage,
         styling_config: StylingConfig,
         terminal_config: TerminalConfig,
         keep_colors: bool,
@@ -49,11 +49,10 @@ impl Ui {
                 .unwrap_or_else(|| get_color(BACKGROUND_COLOR))?,
             keep_colors,
         )?;
-        let image_protocols = image_processor.image_protocols(original_image);
         Ok(Self {
             terminal,
             styling_config,
-            image_protocols,
+            image_protocols: None,
             image_processor,
             message: None,
         })
@@ -73,11 +72,17 @@ impl Ui {
             RenderOption::ShowError(error) => {
                 Some(error.set_style(self.styling_config.errors_style))
             }
-            RenderOption::NewComic(image) => {
-                self.image_protocols = self.image_processor.image_protocols(image);
+            RenderOption::NewImage(image) => {
+                self.image_protocols = Some(self.image_processor.image_protocols(image));
                 None
             }
             RenderOption::None => current_message,
+            RenderOption::DeleteMessage => {
+                if current_message.is_none() {
+                    return Ok(());
+                }
+                None
+            }
         };
 
         let title_block = Block::new()
@@ -105,31 +110,40 @@ impl Ui {
             render(
                 title_block,
                 alt_text,
-                self.image_protocols.get(process_image),
+                self.image_protocols
+                    .as_mut()
+                    .map(|protocols| protocols.get(process_image)),
                 frame,
             )
         })?;
         Ok(())
+    }
+
+    pub fn clear_image_protocols(&mut self) {
+        self.image_protocols = None;
     }
 }
 
 fn render(
     title_block: Block,
     alt_text: Paragraph,
-    image: &mut StatefulProtocol,
+    image: Option<&mut StatefulProtocol>,
     frame: &mut Frame,
 ) {
     let alt_text_height = alt_text.line_count(frame.area().width) as u16;
     let layout = layout(alt_text_height).split(frame.area());
-    let image_area = image.size_for(&Resize::Scale(None), layout[1]);
-    let centered_image_area = center_area(
-        layout[1],
-        Constraint::Length(image_area.width),
-        Constraint::Length(image_area.height),
-    );
     frame.render_widget(title_block, layout[0]);
     frame.render_widget(alt_text, layout[2]);
-    frame.render_stateful_widget(IMAGE_WIDGET, centered_image_area, image);
+    if let Some(image) = image {
+        let image_area = image.size_for(&Resize::Scale(None), layout[1]);
+        let centered_image_area = center_area(
+            layout[1],
+            Constraint::Length(image_area.width),
+            Constraint::Length(image_area.height),
+        );
+
+        frame.render_stateful_widget(IMAGE_WIDGET, centered_image_area, image)
+    };
 }
 
 fn center_area(area: Rect, horizontal: Constraint, vertical: Constraint) -> Rect {
