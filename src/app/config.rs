@@ -11,17 +11,23 @@ use terminal::TerminalConfigRaw;
 mod keybindings;
 use super::{Keybindings, SwitchToComic};
 use bitflags::Flags;
-use color_eyre::{Result, eyre::eyre};
+use color_eyre::{Result, eyre::eyre, owo_colors::OwoColorize};
 use figment::{
     Figment,
     providers::{Data, Toml},
 };
 use serde::Deserialize;
-use std::{collections::HashMap, path::PathBuf};
+use std::{collections::HashMap, fs, path::PathBuf};
 
 const DEFAULT_CONFIG: &str = include_str!("../../default_config.toml");
 pub fn print_default_config() {
     println!("{DEFAULT_CONFIG}")
+}
+
+pub fn write_default_config(path: &PathBuf) -> Result<()> {
+    fs::write(path, DEFAULT_CONFIG)?;
+    println!("Wrote default config to {}", path.display().green());
+    Ok(())
 }
 
 pub(super) struct Config {

@@ -19,6 +19,16 @@ async fn main() -> Result<()> {
         return Ok(());
     }
 
+    if *cli
+        .get_one("write_default_config")
+        .expect("Option has default value")
+    {
+        return app::config::write_default_config(
+            cli.get_one("config_path")
+                .expect("Option has default value"),
+        );
+    }
+
     let result = App::run(cli).await;
     ratatui::restore();
     result

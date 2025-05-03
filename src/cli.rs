@@ -34,6 +34,12 @@ pub fn cli() -> Result<ArgMatches> {
                 .short('p')
                 .help("Print default config")
                 .exclusive(true),
+            Arg::new("write_default_config")
+                .action(ArgAction::SetTrue)
+                .short('w')
+                .help("Write default config")
+                .conflicts_with("number")
+                .conflicts_with("initial_comic"),
         ])
         .styles(STYLE)
         .get_matches())
